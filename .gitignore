@@ -1,40 +1,35 @@
-# Byte-compiled / optimized / DLL files
+# ─────────────────────────────
+# 🐍 Archivos de Python y compilados
+# ─────────────────────────────
 __pycache__/
 *.py[cod]
-
-# C extensions
 *.so
 
-# Distribution / packaging
+# ─────────────────────────────
+# 📦 Entornos virtuales y empaquetado
+# ─────────────────────────────
 .Python
+.env
+*.env
+.venv/
 env/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
+*.egg
 *.egg-info/
 .installed.cfg
-*.egg
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# ─────────────────────────────
+# 🔧 Herramientas y editores
+# ─────────────────────────────
+.vscode/
+.idea/
+.spyproject/
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
+# ─────────────────────────────
+# 🧪 Pruebas y cobertura
+# ─────────────────────────────
 .tox/
 .coverage
 .coverage.*
@@ -42,70 +37,38 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+.mypy_cache/
+htmlcov/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# DotEnv configuration
-.env
-
-# Database
-*.db
-*.rdb
-
-# Pycharm
-.idea
-
-# VS Code
-.vscode/
-
-# Spyder
-.spyproject/
-
-# Jupyter NB Checkpoints
+# ─────────────────────────────
+# 📓 Notebooks
+# ─────────────────────────────
 .ipynb_checkpoints/
 
-# exclude data from source control by default
-/data/
-
-# Mac OS-specific storage files
-.DS_Store
-
-# vim
-*.swp
-*.swo
-
-# Mypy cache
-.mypy_cache/
-# ⚠️ Evitar subir datos originales o intermedios
+# ─────────────────────────────
+# 📊 Datos del proyecto (ajusta si quieres versionar alguno)
+# ─────────────────────────────
 data/raw/
 data/interim/
+data/processed/
 *.csv
 *.xlsx
 
-# ⚠️ Evitar subir archivos temporales de Jupyter
-.ipynb_checkpoints/
-
-# ⚠️ Modelos binarios guardados
-models/
+# ─────────────────────────────
+# 🧠 Modelos binarios
+# ─────────────────────────────
 *.pkl
 *.joblib
 
-# ⚠️ Archivos del entorno
-.env
-*.env
-
-# ⚠️ Archivos temporales de sistema/editor
-.vscode/
+# ─────────────────────────────
+# 💾 Archivos del sistema
+# ─────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ─────────────────────────────
+# ✍️ Otros
+# ─────────────────────────────
+*.log
+*.swp
+*.swo
