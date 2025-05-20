@@ -87,3 +87,25 @@ target/
 
 # Mypy cache
 .mypy_cache/
+# ⚠️ Evitar subir datos originales o intermedios
+data/raw/
+data/interim/
+*.csv
+*.xlsx
+
+# ⚠️ Evitar subir archivos temporales de Jupyter
+.ipynb_checkpoints/
+
+# ⚠️ Modelos binarios guardados
+models/
+*.pkl
+*.joblib
+
+# ⚠️ Archivos del entorno
+.env
+*.env
+
+# ⚠️ Archivos temporales de sistema/editor
+.vscode/
+.DS_Store
+Thumbs.db
