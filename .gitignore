@@ -51,6 +51,7 @@ htmlcov/
 data/raw/
 data/interim/
 data/processed/
+feature_store/ 
 *.csv
 *.xlsx
 
