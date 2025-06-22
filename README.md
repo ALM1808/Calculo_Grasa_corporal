@@ -1,57 +1,92 @@
 Grasa_corporal
 ==============================
 
-Calculo de la grasa corporal
+# 📖 TUTORIAL DE USO: Feature Store y Modelo de Predicción
 
-Project Organization
-------------
+## 1️⃣ Cómo añadir nuevos datos al Feature Store
 
-    ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
+```python
+import pandas as pd
+from src.features.build_features import build_all_features
+from src.feature_store.versioning_and_inference import save_features
+from datetime import datetime
+import uuid
 
+# Ejemplo de entrada de usuario
+nuevo_usuario = {
+    "Age": 32,
+    "Gender": "Female",
+    "Weight (kg)": 68.1,
+    "Height (m)": 1.66,
+    "Max_BPM": 167,
+    "Avg_BPM": 122,
+    "Resting_BPM": 54,
+    "Session_Duration (hours)": 1.11,
+    "Calories_Burned": 677,
+    "Workout_Type": "Cardio",
+    "Water_Intake (liters)": 2.3,
+    "Workout_Frequency (days/week)": 4,
+    "Experience_Level": 2,
+    "Fat_Percentage": None  # Deja como None si no se conoce
+}
 
---------
+df = pd.DataFrame([nuevo_usuario])
+df = build_all_features(df)
 
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+# Añadir identificadores de usuario
+df["email"] = "correo@ejemplo.com"
+df["user_id"] = str(uuid.uuid4())
+df["timestamp"] = datetime.now().isoformat(timespec="seconds")
+
+# Guardar en el Feature Store
+save_features(df, entity="user_fat_percentage", version="v1", use_date=True)
+
+import pandas as pd
+import joblib
+from src.features.preprocessing import create_preprocessor
+from sklearn.ensemble import RandomForestRegressor
+from src.feature_store.versioning_and_inference import load_features
+
+# Cargar la última versión del Feature Store
+df = load_features(entity="user_fat_percentage", latest_if_available=True)
+
+# Solo usar filas con valor real de grasa corporal
+df = df.dropna(subset=["Fat_Percentage"])
+
+X = df.drop(columns=["Fat_Percentage", "email", "user_id", "timestamp", "Predicted_Fat_Percentage"])
+y = df["Fat_Percentage"]
+
+# Crear y ajustar el preprocesador
+preprocessor = create_preprocessor(X)
+X_prepared = preprocessor.fit_transform(X)
+
+# Entrenar el modelo
+model = RandomForestRegressor(random_state=42)
+model.fit(X_prepared, y)
+
+# Guardar el modelo actualizado
+joblib.dump(model, "models/rf_pipeline_retrained.pkl")
+print("✅ Modelo actualizado y guardado")
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from src.feature_store.versioning_and_inference import load_features
+
+# Cargar todos los registros
+df = load_features(entity="user_fat_percentage", latest_if_available=True)
+
+# Filtrar por email de usuario
+user_email = "correo@ejemplo.com"
+historial = df[df["email"] == user_email].sort_values("timestamp")
+
+# Graficar evolución
+plt.plot(historial["timestamp"], historial["Predicted_Fat_Percentage"], marker="o", label="Predicción")
+if "Fat_Percentage" in historial and not historial["Fat_Percentage"].isnull().all():
+    plt.plot(historial["timestamp"], historial["Fat_Percentage"], marker="s", label="Real")
+plt.xlabel("Fecha")
+plt.ylabel("Grasa corporal (%)")
+plt.title("Evolución de la grasa corporal del usuario")
+plt.legend()
+plt.grid()
+plt.tight_layout()
+plt.show()
