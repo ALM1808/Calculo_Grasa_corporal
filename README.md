@@ -1,11 +1,50 @@
-Grasa_corporal
-==============================
+Grasa Corporal 🏋️‍♂️📊
 
-# 📖 TUTORIAL DE USO: Feature Store y Modelo de Predicción
+Aplicación para predecir y hacer seguimiento de la grasa corporal de usuarios a partir de datos de salud y entrenamiento.
 
-## 1️⃣ Cómo añadir nuevos datos al Feature Store
+El proyecto combina:
 
-```python
+Machine Learning (Random Forest, scikit-learn) para estimar el porcentaje de grasa corporal.
+
+Feature Engineering para generar variables derivadas (BMI, log_age, etc.).
+
+Streamlit para ofrecer una interfaz web interactiva y fácil de usar.
+
+Feature Store local (CSV) que guarda cada registro introducido por los usuarios, permitiendo llevar un historial personal y mejorar el modelo con reentrenamiento.
+
+🚀 Características principales
+
+Predicción del % de grasa corporal a partir de métricas de salud y entrenamiento.
+
+Registro de los datos en un Feature Store local para mantener histórico.
+
+Posibilidad de añadir valores reales de grasa corporal (si se conocen) para mejorar el modelo.
+
+Interfaz web sencilla en Streamlit
+.
+
+Entrenamiento y reentrenamiento de modelos con scikit-learn.
+
+⚙️ Instalación
+
+Clona el repositorio e instala las dependencias con Poetry
+:
+
+git clone https://github.com/ALM1808/Calculo_Grasa_corporal.git
+cd Calculo_Grasa_corporal
+poetry install
+poetry shell
+
+▶️ Uso local
+
+Ejecuta la aplicación de Streamlit:
+
+poetry run streamlit run app.py
+
+
+Esto abrirá la aplicación en http://localhost:8501/.
+
+📊 Ejemplo de uso en Python
 import pandas as pd
 from src.features.build_features import build_all_features
 from src.feature_store.versioning_and_inference import save_features
@@ -33,7 +72,7 @@ nuevo_usuario = {
 df = pd.DataFrame([nuevo_usuario])
 df = build_all_features(df)
 
-# Añadir identificadores de usuario
+# Añadir identificadores
 df["email"] = "correo@ejemplo.com"
 df["user_id"] = str(uuid.uuid4())
 df["timestamp"] = datetime.now().isoformat(timespec="seconds")
@@ -41,52 +80,15 @@ df["timestamp"] = datetime.now().isoformat(timespec="seconds")
 # Guardar en el Feature Store
 save_features(df, entity="user_fat_percentage", version="v1", use_date=True)
 
-import pandas as pd
-import joblib
-from src.features.preprocessing import create_preprocessor
-from sklearn.ensemble import RandomForestRegressor
-from src.feature_store.versioning_and_inference import load_features
-
-# Cargar la última versión del Feature Store
-df = load_features(entity="user_fat_percentage", latest_if_available=True)
-
-# Solo usar filas con valor real de grasa corporal
-df = df.dropna(subset=["Fat_Percentage"])
-
-X = df.drop(columns=["Fat_Percentage", "email", "user_id", "timestamp", "Predicted_Fat_Percentage"])
-y = df["Fat_Percentage"]
-
-# Crear y ajustar el preprocesador
-preprocessor = create_preprocessor(X)
-X_prepared = preprocessor.fit_transform(X)
-
-# Entrenar el modelo
-model = RandomForestRegressor(random_state=42)
-model.fit(X_prepared, y)
-
-# Guardar el modelo actualizado
-joblib.dump(model, "models/rf_pipeline_retrained.pkl")
-print("✅ Modelo actualizado y guardado")
-
-import pandas as pd
-import matplotlib.pyplot as plt
-from src.feature_store.versioning_and_inference import load_features
-
-# Cargar todos los registros
-df = load_features(entity="user_fat_percentage", latest_if_available=True)
-
-# Filtrar por email de usuario
-user_email = "correo@ejemplo.com"
-historial = df[df["email"] == user_email].sort_values("timestamp")
-
-# Graficar evolución
-plt.plot(historial["timestamp"], historial["Predicted_Fat_Percentage"], marker="o", label="Predicción")
-if "Fat_Percentage" in historial and not historial["Fat_Percentage"].isnull().all():
-    plt.plot(historial["timestamp"], historial["Fat_Percentage"], marker="s", label="Real")
-plt.xlabel("Fecha")
-plt.ylabel("Grasa corporal (%)")
-plt.title("Evolución de la grasa corporal del usuario")
-plt.legend()
-plt.grid()
-plt.tight_layout()
-plt.show()
+📂 Estructura del proyecto
+├── app.py                        # Aplicación Streamlit
+├── data/                         # Datos en crudo y procesados
+├── models/                       # Modelos entrenados
+├── notebooks/                    # Notebooks de exploración y entrenamiento
+├── src/
+│   ├── features/                 # Feature engineering y preprocesamiento
+│   ├── feature_store/            # Gestión del Feature Store
+│   └── models/                   # Entrenamiento y evaluación
+├── tests/                        # Tests unitarios
+├── pyproject.toml                # Configuración de Poetry
+└── README.md                     # Este archivo
