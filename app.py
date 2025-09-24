@@ -13,8 +13,25 @@ from datetime import datetime
 from features.build_features import build_all_features
 
 # Modelo entrenado (ajusta el nombre si usas el optimizado)
+from urllib.request import urlopen
+from io import BytesIO
+
 MODEL_PATH = ROOT / "models" / "rf_pipeline.pkl"
-model = joblib.load(MODEL_PATH)
+MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# URL RAW del modelo en GitHub (ajústala si tu repo/archivo es distinto)
+MODEL_URL = "https://raw.githubusercontent.com/ALM1808/Calculo_Grasa_corporal/main/models/rf_pipeline.pkl"
+
+try:
+    model = joblib.load(MODEL_PATH)
+except FileNotFoundError:
+    st.warning("Modelo no encontrado en el contenedor. Descargando modelo…")
+    with urlopen(MODEL_URL) as resp:
+        data = resp.read()
+    model = joblib.load(BytesIO(data))
+    joblib.dump(model, MODEL_PATH)  # cache local
+    st.success("Modelo descargado y cargado correctamente.")
+
 
 st.title("Predicción de Grasa Corporal")
 
