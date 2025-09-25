@@ -38,7 +38,7 @@ def load_model_safely():
 
 model = load_model_safely()
 
-# --- Feature store local: asegura carpetas (fallback/local) ---
+# --- Feature store local: asegura carpetas ---
 FEATURES_CSV = ROOT / "feature_store" / "user_fat_percentage" / "features.csv"
 FEATURES_CSV.parent.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +50,7 @@ email = st.text_input("Email (identificador único)")
 
 age = st.number_input("Edad", min_value=10, max_value=99, value=30)
 
-# Muestra en español pero mapea a lo que espera el modelo
+# Mostrar en español pero mapear al modelo
 gender_es = st.selectbox("Género", ["Hombre", "Mujer"])
 gender_map = {"Hombre": "Male", "Mujer": "Female"}
 gender = gender_map[gender_es]
@@ -71,7 +71,7 @@ real_fat_percentage = st.number_input("Tu grasa corporal REAL (opcional)", min_v
 
 # --- Botón principal ---
 if st.button("Predecir y guardar"):
-    # A) Construir DataFrame con los nombres EXACTOS del dataset original
+    # A) Construir DataFrame
     input_dict = {
         "Age": age,
         "Gender": gender,
@@ -89,7 +89,7 @@ if st.button("Predecir y guardar"):
     }
     df_input = pd.DataFrame([input_dict])
 
-    # B) Feature engineering igual que en entrenamiento
+    # B) Feature engineering
     df_input = build_all_features(df_input)
 
     # C) Predicción
@@ -123,7 +123,12 @@ if st.button("Predecir y guardar"):
     else:
         store_df = record
 
+    # 🔒 Garantizar carpeta y guardar
+    FEATURES_CSV.parent.mkdir(parents=True, exist_ok=True)
     store_df.to_csv(FEATURES_CSV, index=False)
+
+    st.caption(f"Guardando CSV en: {FEATURES_CSV}")
+    st.caption(f"Carpeta existe: {FEATURES_CSV.parent.exists()}")
     st.success("¡Tus datos han sido guardados!")
 
     # E) Evolución del usuario
