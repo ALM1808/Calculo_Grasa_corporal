@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
 
+# --- Rutas base ---
 ROOT = Path(__file__).resolve().parent
 sys.path.append(str(ROOT / "src"))
 
+# --- Imports ---
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,7 +14,7 @@ from datetime import datetime
 
 from features.build_features import build_all_features
 
-# --- Modelo: carga local y fallback descarga ---
+# --- Modelo: carga local y descarga en caso de no existir ---
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 from io import BytesIO
@@ -42,99 +44,142 @@ model = load_model_safely()
 FEATURES_CSV = ROOT / "feature_store" / "user_fat_percentage" / "features.csv"
 FEATURES_CSV.parent.mkdir(parents=True, exist_ok=True)
 
-st.title("Predicción de Grasa Corporal")
-st.markdown("Introduce tus datos y obtén una predicción. Si repites con tu email, verás tu evolución.")
+# --- Título y descripción ---
+st.title("Predicción de grasa corporal")
+st.markdown(
+    "Introduce tus datos y obtén una predicción. "
+    "Si repites con tu **email**, podrás ver tu evolución a lo largo del tiempo."
+)
 
-# --- Formulario ---
+# =========================
+# =        FORM          =
+# =========================
 email = st.text_input("Email (identificador único)")
 
-age = st.number_input("Edad", min_value=10, max_value=99, value=30)
+edad = st.number_input("Edad", min_value=10, max_value=99, value=30, help="Años cumplidos")
 
 # Mostrar en español pero mapear al modelo
-gender_es = st.selectbox("Género", ["Hombre", "Mujer"])
-gender_map = {"Hombre": "Male", "Mujer": "Female"}
-gender = gender_map[gender_es]
+genero_es = st.selectbox("Género", ["Hombre", "Mujer"])
+genero_map = {"Hombre": "Male", "Mujer": "Female"}
+genero = genero_map[genero_es]
 
-weight = st.number_input("Peso (kg)", min_value=30.0, max_value=200.0, value=70.0)
-height = st.number_input("Altura (m)", min_value=1.40, max_value=2.20, value=1.70, step=0.01)
-max_bpm = st.number_input("Max_BPM", min_value=80, max_value=220, value=160)
-avg_bpm = st.number_input("Avg_BPM", min_value=40, max_value=200, value=130)
-resting_bpm = st.number_input("Resting_BPM", min_value=30, max_value=100, value=60)
-session_duration = st.number_input("Session_Duration (hours)", min_value=0.1, max_value=5.0, value=1.0, step=0.01)
-calories_burned = st.number_input("Calories_Burned", min_value=100.0, max_value=5000.0, value=800.0)
-workout_type = st.selectbox("Workout_Type", ["Yoga", "HIIT", "Cardio", "Strength", "Mixed"])
-water_intake = st.number_input("Water_Intake (liters)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
-workout_freq = st.number_input("Workout_Frequency (days/week)", min_value=1, max_value=7, value=3)
-experience_level = st.selectbox("Experience_Level", [1, 2, 3, 4, 5])
+peso = st.number_input("Peso (kg)", min_value=30.0, max_value=200.0, value=70.0, step=0.1)
+altura = st.number_input("Altura (m)", min_value=1.40, max_value=2.20, value=1.70, step=0.01)
 
-real_fat_percentage = st.number_input("Tu grasa corporal REAL (opcional)", min_value=0.0, max_value=70.0, value=0.0, step=0.1)
+max_bpm = st.number_input("Frecuencia cardiaca máxima (lat/min)", min_value=80, max_value=220, value=160)
+avg_bpm = st.number_input("Frecuencia cardiaca media (lat/min)", min_value=40, max_value=200, value=130)
+resting_bpm = st.number_input("Frecuencia en reposo (lat/min)", min_value=30, max_value=100, value=60)
 
-# --- Botón principal ---
+duracion_sesion = st.number_input("Duración de la sesión (horas)", min_value=0.1, max_value=5.0, value=1.0, step=0.01)
+calorias = st.number_input("Calorías quemadas (kcal)", min_value=100.0, max_value=5000.0, value=800.0)
+
+# Desplegable en español pero valores que el modelo espera en inglés
+tipo_entrenamiento_es = st.selectbox(
+    "Tipo de entrenamiento",
+    ["Yoga", "HIIT", "Cardio", "Fuerza", "Mixto"]
+)
+tipo_map = {
+    "Yoga": "Yoga",
+    "HIIT": "HIIT",
+    "Cardio": "Cardio",
+    "Fuerza": "Strength",
+    "Mixto": "Mixed",
+}
+tipo_entrenamiento = tipo_map[tipo_entrenamiento_es]
+
+agua = st.number_input("Ingesta de agua (litros)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
+frecuencia = st.number_input("Frecuencia de entrenamiento (días/semana)", min_value=1, max_value=7, value=3)
+nivel_exp = st.selectbox("Nivel de experiencia (1=Principiante • 5=Avanzado)", [1, 2, 3, 4, 5])
+
+grasa_real = st.number_input("Tu % de grasa corporal REAL (opcional)", min_value=0.0, max_value=70.0, value=0.0, step=0.1)
+
+# =========================
+# =  BOTÓN PRINCIPAL     =
+# =========================
 if st.button("Predecir y guardar"):
-    # A) Construir DataFrame
+    # Validación mínima
+    if not email:
+        st.error("Por favor, introduce un email para poder guardar y consultar tu evolución.")
+        st.stop()
+
+    # A) Construir DataFrame con los nombres que espera el modelo
     input_dict = {
-        "Age": age,
-        "Gender": gender,
-        "Weight (kg)": weight,
-        "Height (m)": height,
+        "Age": edad,
+        "Gender": genero,                       # Male/Female (mapeado)
+        "Weight (kg)": peso,
+        "Height (m)": altura,
         "Max_BPM": max_bpm,
         "Avg_BPM": avg_bpm,
         "Resting_BPM": resting_bpm,
-        "Session_Duration (hours)": session_duration,
-        "Calories_Burned": calories_burned,
-        "Workout_Type": workout_type,
-        "Water_Intake (liters)": water_intake,
-        "Workout_Frequency (days/week)": workout_freq,
-        "Experience_Level": experience_level,
+        "Session_Duration (hours)": duracion_sesion,
+        "Calories_Burned": calorias,
+        "Workout_Type": tipo_entrenamiento,     # Yoga/HIIT/Cardio/Strength/Mixed
+        "Water_Intake (liters)": agua,
+        "Workout_Frequency (days/week)": frecuencia,
+        "Experience_Level": nivel_exp,
     }
     df_input = pd.DataFrame([input_dict])
 
-    # B) Feature engineering
+    # B) Ingeniería de características
     df_input = build_all_features(df_input)
 
     # C) Predicción
-    prediction = model.predict(df_input)[0]
-    st.success(f"Tu grasa corporal estimada es: **{prediction:.2f}%**")
+    pred = model.predict(df_input)[0]
+    st.success(f"Tu grasa corporal estimada es: **{pred:.2f}%**")
 
-    # D) Guardar registro
-    now = datetime.now().isoformat(timespec="seconds")
+    # D) Guardado en el feature store
+    ahora_iso = datetime.now().isoformat(timespec="seconds")
+
+    # Calcular/recuperar user_id
     if FEATURES_CSV.exists():
         store_df = pd.read_csv(FEATURES_CSV)
-        if "user_id" in store_df and not store_df.empty:
-            if email in store_df.get("email", pd.Series(dtype=str)).values:
+        if (not store_df.empty) and ("user_id" in store_df.columns):
+            if "email" in store_df.columns and email in store_df["email"].astype(str).values:
+                # Si ya existe el email, reutilizar su user_id
                 user_id = store_df.loc[store_df["email"] == email, "user_id"].iloc[0]
             else:
-                user_id = (pd.to_numeric(store_df["user_id"], errors="coerce").max() or 0) + 1
+                # Si no existe el email, nuevo id incremental
+                max_id = pd.to_numeric(store_df["user_id"], errors="coerce").max()
+                user_id = (0 if pd.isna(max_id) else int(max_id)) + 1
         else:
             user_id = 1
     else:
         user_id = 1
 
+    # Registro a guardar
     record = df_input.copy()
     record["email"] = email
-    record["timestamp"] = now
+    record["timestamp"] = ahora_iso
     record["user_id"] = user_id
-    record["predicted_fat_percentage"] = prediction
-    record["real_fat_percentage"] = real_fat_percentage if real_fat_percentage > 0 else np.nan
+    record["predicted_fat_percentage"] = pred
+    record["real_fat_percentage"] = grasa_real if grasa_real > 0 else np.nan
 
+    # Concatenar/crear CSV
     if FEATURES_CSV.exists():
         store_df = pd.read_csv(FEATURES_CSV)
         store_df = pd.concat([store_df, record], ignore_index=True)
     else:
         store_df = record
 
-    # 🔒 Garantizar carpeta y guardar
     FEATURES_CSV.parent.mkdir(parents=True, exist_ok=True)
     store_df.to_csv(FEATURES_CSV, index=False)
 
-    st.caption(f"Guardando CSV en: {FEATURES_CSV}")
-    st.caption(f"Carpeta existe: {FEATURES_CSV.parent.exists()}")
-    st.success("¡Tus datos han sido guardados!")
+    st.caption(f"Archivo CSV guardado en: {FEATURES_CSV}")
+    st.caption(f"Carpeta creada/existente: {FEATURES_CSV.parent.exists()}")
+    st.success("¡Tus datos han sido guardados correctamente!")
 
-    # E) Evolución del usuario
+    # E) Evolución del usuario (gráfica)
     if email and FEATURES_CSV.exists():
         df_hist = pd.read_csv(FEATURES_CSV)
-        df_user = df_hist[df_hist["email"] == email].sort_values("timestamp")
+        df_user = df_hist[df_hist["email"] == email].copy()
         if not df_user.empty:
+            # Ordenar por fecha y asegurar tipo datetime
+            df_user["timestamp"] = pd.to_datetime(df_user["timestamp"], errors="coerce")
+            df_user = df_user.sort_values("timestamp")
+
             st.subheader("Evolución histórica de tus predicciones")
-            st.line_chart(df_user.set_index("timestamp")[["predicted_fat_percentage"]])
+            graf = df_user.set_index("timestamp")[["predicted_fat_percentage"]]
+            graf.columns = ["Predicción de % grasa"]
+            st.line_chart(graf)
+        else:
+            st.info("Aún no hay histórico para este email.")
