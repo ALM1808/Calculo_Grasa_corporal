@@ -44,6 +44,29 @@ Esto abrirá la app en http://localhost:8501/
 .
 
 Ejemplo de uso en Python
+
+En el siguiente ejemplo se muestra cómo preparar la entrada de datos para el modelo.
+
+⚠️ Los nombres de las variables deben estar en inglés, ya que así se entrenó el modelo.
+La siguiente tabla explica en español qué representa cada campo.
+
+Campos de entrada del modelo
+Variable (inglés)	Descripción en español	Ejemplo
+Age	Edad en años	32
+Gender	Género (Male / Female)	Female
+Weight (kg)	Peso en kilogramos	68.1
+Height (m)	Altura en metros	1.66
+Max_BPM	Frecuencia cardiaca máxima (latidos/min)	167
+Avg_BPM	Frecuencia cardiaca media (latidos/min)	122
+Resting_BPM	Frecuencia cardiaca en reposo (latidos/min)	54
+Session_Duration (hours)	Duración de la sesión en horas	1.11
+Calories_Burned	Calorías quemadas	677
+Workout_Type	Tipo de entrenamiento (Yoga, HIIT, Cardio, Strength, Mixed)	Cardio
+Water_Intake (liters)	Ingesta de agua en litros	2.3
+Workout_Frequency (days/week)	Frecuencia de entrenamiento semanal (días/semana)	4
+Experience_Level	Nivel de experiencia (1 = principiante, 5 = avanzado)	2
+Fat_Percentage	Grasa corporal real (%). Usar None si no se conoce	None
+Código de ejemplo
 import pandas as pd
 from src.features.build_features import build_all_features
 from src.feature_store.versioning_and_inference import save_features
