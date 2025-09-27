@@ -1,10 +1,10 @@
-Grasa Corporal
+# CÁLCULO DE GRASA CORPORAL
 
 Aplicación interactiva en Streamlit para predecir y hacer seguimiento del porcentaje de grasa corporal de usuarios a partir de datos de salud y entrenamiento.
 
 
 
-El proyecto combina:
+# El proyecto combina:
 
 Machine Learning (Random Forest, scikit-learn) para la estimación.
 
@@ -16,7 +16,7 @@ Feature Store local (CSV) para guardar el histórico de cada usuario y permitir 
 
 
 
-Características principales
+# Características principales
 
 Predicción del % de grasa corporal a partir de métricas de salud y entrenamiento.
 
@@ -30,7 +30,7 @@ Entrenamiento y reentrenamiento de modelos con scikit-learn.
 
 
 
-Ejemplo de uso en Python
+# Ejemplo de uso en Python
 
 En el siguiente ejemplo se muestra cómo preparar la entrada de datos para el modelo.
 
@@ -98,7 +98,7 @@ Estructura del proyecto
 
 
 
-Tecnologías utilizadas
+# Tecnologías utilizadas
 
 Python
 
@@ -110,7 +110,7 @@ Poetry
 
 
 
-Próximos pasos
+# Próximos pasos
 
 Mejorar la visualización del historial del usuario (gráficas comparativas).
 
