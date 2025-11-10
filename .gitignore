@@ -73,3 +73,6 @@ Thumbs.db
 *.log
 *.swp
 *.swo
+debug_*.py
+models/debug_*.pkl
+models/preprocessor.joblib
