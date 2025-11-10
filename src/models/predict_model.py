@@ -4,12 +4,33 @@ import joblib
 import pandas as pd
 from pathlib import Path
 
-# Ruta al modelo entrenado
-MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "rf_pipeline_optuna.pkl"
 
-# Cargar pipeline entrenado
-model = joblib.load(MODEL_PATH)
+# --- Ruta al modelo entrenado ---
+MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "rf_pipeline_optuna.pkl"
 
+
+# --- Función para cargar el modelo ---
+def load_model(path: Path = MODEL_PATH):
+    """
+    Carga el modelo desde el archivo especificado.
+
+    Parámetros:
+        path (Path): Ruta al archivo .pkl del modelo.
+
+    Retorna:
+        Modelo cargado (pipeline de scikit-learn).
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el modelo en {path}")
+    model = joblib.load(path)
+    return model
+
+
+# --- Carga inicial (opcional, útil para evitar recarga repetida) ---
+model = load_model()
+
+
+# --- Función de predicción ---
 def predict_fat_percentage(new_data: pd.DataFrame) -> float:
     """
     Realiza una predicción de porcentaje de grasa corporal.

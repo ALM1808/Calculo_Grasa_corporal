@@ -1,0 +1,15 @@
+# Dockerfile para frontend Streamlit
+FROM python:3.11-slim
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements e instalar dependencias
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código de la app
+COPY . .
+
+# Ejecutar Streamlit
+CMD ["streamlit", "run", "app/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

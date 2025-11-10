@@ -1,0 +1,24 @@
+# Ignorar entorno virtual y dependencias locales
+.venv
+.venv311
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar configuración y archivos locales
+.vscode
+.env
+*.log
+.DS_Store
+
+# Ignorar datos temporales o personales
+*.csv
+*.xlsx
+*.zip
+*.db
+.ipynb_checkpoints
+
+# Ignorar sincronización de OneDrive
+OneDrive
+
