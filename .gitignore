@@ -76,3 +76,29 @@ Thumbs.db
 debug_*.py
 models/debug_*.pkl
 models/preprocessor.joblib
+
+# Entorno virtual
+.venv/
+env/
+venv/
+
+# Config local / secretos
+.env
+*.env
+
+# Archivos Python cache
+__pycache__/
+*.py[cod]
+
+# Modelos y artefactos locales pesados
+models/*.pkl
+models/*.joblib
+!models/rf_pipeline.pkl  # si quieres subir solo este (opcional)
+
+# Scripts de depuración locales
+debug_*.py
+models/debug_*.pkl
+
+# Checkpoints de notebooks
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
