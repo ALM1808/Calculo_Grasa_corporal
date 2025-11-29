@@ -1,4 +1,5 @@
 # src/models/train_pipeline.py
+# src/models/train_pipeline.py
 import json
 from pathlib import Path
 from datetime import datetime
@@ -26,6 +27,7 @@ RANDOM_STATE = 42
 TEST_SIZE = 0.2
 TARGET = "Fat_Percentage"
 
+
 def _ohe():
     """Devuelve un OneHotEncoder compatible con diferentes versiones de sklearn."""
     try:
@@ -35,7 +37,12 @@ def _ohe():
         # sklearn < 1.2
         return OneHotEncoder(handle_unknown="ignore", sparse=False)
 
+
 def main():
+    print(f">> TRAIN SCRIPT PATH: {__file__}")
+    import sys
+    print(f">> PYTHON EXECUTABLE: {sys.executable}")
+
     if not DATA_PATH.exists():
         raise FileNotFoundError(
             f"No se encontró el dataset de características en {DATA_PATH}. "
@@ -45,19 +52,19 @@ def main():
     # --- Cargar datos ---
     df = pd.read_csv(DATA_PATH)
     if TARGET not in df.columns:
-        raise ValueError(f"Columna objetivo '{TARGET}' no está en el dataset. Columnas: {df.columns.tolist()}")
+        raise ValueError(
+            f"Columna objetivo '{TARGET}' no está en el dataset. "
+            f"Columnas disponibles: {df.columns.tolist()}"
+        )
 
     # Separamos X/y
     y = df[TARGET].copy()
     X = df.drop(columns=[TARGET]).copy()
 
     # --- Tipos y selección de columnas ---
-    # Forzamos 'category' para columnas claramente categóricas si fuese necesario:
-    # (Si ya lo hiciste en el pipeline de features, no es estrictamente necesario.)
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     num_cols = X.select_dtypes(include=[np.number]).columns.tolist()
 
-    # Comprobación útil
     if len(num_cols) == 0 and len(cat_cols) == 0:
         raise ValueError("No se detectaron columnas numéricas ni categóricas en X.")
 
@@ -77,10 +84,12 @@ def main():
         n_jobs=-1,
     )
 
-    pipeline = Pipeline(steps=[
-        ("preprocessing", preprocessor),
-        ("model", model),
-    ])
+    pipeline = Pipeline(
+        steps=[
+            ("preprocessing", preprocessor),
+            ("model", model),
+        ]
+    )
 
     # --- Split y entrenamiento ---
     X_train, X_test, y_train, y_test = train_test_split(
@@ -91,9 +100,11 @@ def main():
     # --- Métricas ---
     def _metrics(y_true, y_pred):
         mae = mean_absolute_error(y_true, y_pred)
-        rmse = mean_squared_error(y_true, y_pred, squared=False)
+        # En sklearn 1.6.1 mean_squared_error YA NO tiene 'squared'
+        mse = mean_squared_error(y_true, y_pred)
+        rmse = float(mse**0.5)
         r2 = r2_score(y_true, y_pred)
-        return {"MAE": float(mae), "RMSE": float(rmse), "R2": float(r2)}
+        return {"MAE": float(mae), "RMSE": rmse, "R2": float(r2)}
 
     y_pred_tr = pipeline.predict(X_train)
     y_pred_te = pipeline.predict(X_test)
@@ -103,7 +114,6 @@ def main():
         "test": _metrics(y_test, y_pred_te),
     }
 
- 
     # --- Guardado de artefactos (comprimido) ---
     ts = datetime.now().strftime("%Y-%m-%d")
     main_model_path = MODEL_DIR / "rf_pipeline.pkl"
@@ -140,5 +150,7 @@ def main():
     print(f"📝 Reporte de entrenamiento en: {report_path.relative_to(ROOT)}")
     print("Métricas (test):", metrics["test"])
 
+
 if __name__ == "__main__":
     main()
+

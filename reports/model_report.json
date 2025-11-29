@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-11-20T18:27:30",
+  "sklearn_version": "1.6.1",
+  "random_state": 42,
+  "test_size": 0.2,
+  "target": "Fat_Percentage",
+  "n_rows": 973,
+  "n_features_before": 15,
+  "num_cols": [
+    "Age",
+    "Weight (kg)",
+    "Height (m)",
+    "Max_BPM",
+    "Avg_BPM",
+    "Resting_BPM",
+    "Session_Duration (hours)",
+    "Calories_Burned",
+    "Water_Intake (liters)",
+    "Workout_Frequency (days/week)",
+    "Experience_Level",
+    "BMI",
+    "Log_Age"
+  ],
+  "cat_cols": [
+    "Gender",
+    "Workout_Type"
+  ],
+  "model_paths": {
+    "main": "models\\rf_pipeline.pkl",
+    "backup": "models\\rf_pipeline_v1_2025-11-20.pkl"
+  },
+  "metrics": {
+    "train": {
+      "MAE": 0.8764437017994899,
+      "RMSE": 1.0398368636634465,
+      "R2": 0.9722756874034609
+    },
+    "test": {
+      "MAE": 2.374974358974361,
+      "RMSE": 2.7925147845165634,
+      "R2": 0.8032420925697319
+    }
+  }
+}

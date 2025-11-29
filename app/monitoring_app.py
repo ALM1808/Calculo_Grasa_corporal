@@ -1,58 +1,64 @@
 # app/monitoring_app.py
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
 
-# -------------------------
-# Config Hopsworks
-# -------------------------
+# =========================
+# Configuración inicial
+# =========================
+load_dotenv()
+
 HOPSWORKS_PROJECT = os.getenv("HOPSWORKS_PROJECT")
 HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")
-HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "https://c.app.hopsworks.ai")
+HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "c.app.hopsworks.ai")
 
+st.set_page_config(
+    page_title="GrasaCorporal - Monitoring",
+    layout="wide",
+)
 
-@st.cache_resource(show_spinner=True)
-def get_hopsworks_client():
-    """
-    Devuelve (project, fs) si las credenciales son válidas.
-    Si falla, devolvemos (None, None) para que la app no se rompa.
-    """
-    if not HOPSWORKS_PROJECT or not HOPSWORKS_API_KEY:
-        return None, None
+st.title("🧪 Monitorización del modelo de grasa corporal")
+st.caption("Dashboard interno para revisar predicciones, feedback y drift de datos.")
+
+# =========================
+# Utilidades
+# =========================
+
+@st.cache_resource(show_spinner=False)
+def get_feature_store():
+    """Conecta a Hopsworks y devuelve (project, fs)."""
+    if not (HOPSWORKS_PROJECT and HOPSWORKS_API_KEY):
+        raise RuntimeError("Faltan HOPSWORKS_PROJECT o HOPSWORKS_API_KEY en el entorno/.env")
 
     try:
         import hopsworks
-
-        project = hopsworks.login(
-            api_key_value=HOPSWORKS_API_KEY,
-            project=HOPSWORKS_PROJECT,
-            host=HOPSWORKS_HOST,
-        )
-        fs = project.get_feature_store()
-        return project, fs
     except Exception as e:
-        st.error(f"No se pudo conectar a Hopsworks: {e}")
-        return None, None
+        raise RuntimeError(f"No se pudo importar hopsworks: {e}")
+
+    project = hopsworks.login(
+        api_key_value=HOPSWORKS_API_KEY,
+        project=HOPSWORKS_PROJECT,
+        host=HOPSWORKS_HOST,
+    )
+    fs = project.get_feature_store()
+    return project, fs
 
 
-def load_feature_groups(fs):
-    """
-    Lee:
-    - user_fat_percentage v1: predicciones + features
-    - user_fat_feedback v1 : feedback real
-    Si alguno no existe, devuelve df vacío.
-    """
-    # Predicciones
-    try:
-        fg_pred = fs.get_feature_group("user_fat_percentage", version=1)
-        df_pred = fg_pred.read()
-    except Exception:
-        df_pred = pd.DataFrame()
+@st.cache_data(show_spinner=True, ttl=300)
+def load_data():
+    """Lee user_fat_percentage v1 y user_fat_feedback v1 (si existe)."""
+    project, fs = get_feature_store()
 
-    # Feedback
+    # FG principal con predicciones
+    fg_pred = fs.get_feature_group("user_fat_percentage", version=1)
+    df_pred = fg_pred.read()
+
+    # Feedback (puede que no exista aún)
     try:
         fg_fb = fs.get_feature_group("user_fat_feedback", version=1)
         df_fb = fg_fb.read()
@@ -62,134 +68,220 @@ def load_feature_groups(fs):
     return df_pred, df_fb
 
 
-def build_dashboard(df_pred: pd.DataFrame, df_fb: pd.DataFrame):
-    st.title("📊 Monitorización modelo grasa corporal")
+def join_with_feedback(df_pred: pd.DataFrame, df_fb: pd.DataFrame) -> pd.DataFrame:
+    """Une predicciones y feedback por user_id + email + timestamp redondeado."""
+    if df_fb.empty:
+        return pd.DataFrame()
 
-    # ----------------- sección: estado general -----------------
-    if df_pred.empty:
-        st.warning("Aún no hay datos en `user_fat_percentage`.")
-        return
+    df_main = df_pred.copy()
+    df_fb_ = df_fb.copy()
 
-    st.subheader("Estado general")
+    for c in ("user_id", "email"):
+        if c in df_main.columns:
+            df_main[c] = df_main[c].astype(str)
+        if c in df_fb_.columns:
+            df_fb_[c] = df_fb_[c].astype(str)
 
-    total_preds = len(df_pred)
-    unique_users = df_pred["email"].nunique() if "email" in df_pred.columns else None
+    # Redondeo timestamp a segundos para mejorar matching
+    df_main["timestamp"] = pd.to_datetime(df_main["timestamp"], errors="coerce").dt.round("S")
+    df_fb_["timestamp"] = pd.to_datetime(df_fb_["timestamp"], errors="coerce").dt.round("S")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total predicciones", total_preds)
-    if unique_users is not None:
-        col2.metric("Usuarios únicos", unique_users)
+    # Join interno
+    on_cols = ["user_id", "email", "timestamp"]
+    common = [c for c in on_cols if c in df_main.columns and c in df_fb_.columns]
+    if len(common) < 2:
+        return pd.DataFrame()
 
-    # Última predicción
-    if "timestamp" in df_pred.columns:
-        df_pred["timestamp"] = pd.to_datetime(df_pred["timestamp"], errors="coerce")
-        last_ts = df_pred["timestamp"].max()
-        col3.metric(
-            "Última predicción",
-            last_ts.strftime("%Y-%m-%d %H:%M:%S") if pd.notnull(last_ts) else "-",
-        )
-
-    # ----------------- sección: calidad del modelo -----------------
-    st.subheader("Calidad (donde tenemos valor REAL)")
-
-    # intentamos usar real_fat_percentage si ya viene en df_pred
-    df_eval = df_pred.copy()
-    if "real_fat_percentage" in df_eval.columns:
-        df_eval = df_eval[df_eval["real_fat_percentage"].notna()]
-
-    # o join con feedback si existe FG aparte
-    if df_fb is not None and not df_fb.empty:
-        if "timestamp" in df_fb.columns:
-            df_fb["timestamp"] = pd.to_datetime(df_fb["timestamp"], errors="coerce")
-        # join aproximado por email (simple; en proyecto real se haría mejor)
-        df_fb_last = (
-            df_fb.sort_values("timestamp")
-            .groupby("email", as_index=False)
-            .last()
-        )
-        df_eval = pd.merge(
-            df_pred,
-            df_fb_last[["email", "real_fat_percentage"]],
-            on="email",
-            how="left",
-            suffixes=("", "_fb"),
-        )
-        # priorizamos columna del feedback group si existe
-        if "real_fat_percentage_fb" in df_eval.columns:
-            df_eval["real_fat_percentage"] = df_eval["real_fat_percentage_fb"]
-        df_eval = df_eval[df_eval["real_fat_percentage"].notna()]
-
-    if df_eval.empty or "predicted_fat_percentage" not in df_eval.columns:
-        st.info("Todavía no hay suficientes pares (predicción, valor real) para métricas.")
-    else:
-        import numpy as np
-
-        y_true = pd.to_numeric(
-            df_eval["real_fat_percentage"], errors="coerce"
-        )
-        y_pred = pd.to_numeric(
-            df_eval["predicted_fat_percentage"], errors="coerce"
-        )
-
-        mask = y_true.notna() & y_pred.notna()
-        y_true = y_true[mask]
-        y_pred = y_pred[mask]
-
-        if len(y_true) == 0:
-            st.info("Hay registros, pero no valores numéricos válidos para evaluar.")
-        else:
-            mae = float(np.mean(np.abs(y_true - y_pred)))
-            rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
-
-            c1, c2 = st.columns(2)
-            c1.metric("MAE (|real - pred|)", f"{mae:.2f} puntos")
-            c2.metric("RMSE", f"{rmse:.2f} puntos")
-
-            st.write("Distribución de errores")
-            st.bar_chart((y_pred - y_true), height=200)
-
-    # ----------------- sección: inspección de datos -----------------
-    st.subheader("Muestra de registros recientes")
-    cols_show = [
-        c
-        for c in df_pred.columns
-        if c
-        in [
-            "timestamp",
-            "email",
-            "age",
-            "gender",
-            "weight_kg",
-            "bmi",
-            "predicted_fat_percentage",
-            "real_fat_percentage",
-        ]
-    ]
-    df_show = df_pred.copy()
-    if "timestamp" in df_show.columns:
-        df_show["timestamp"] = pd.to_datetime(df_show["timestamp"], errors="coerce")
-        df_show = df_show.sort_values("timestamp", ascending=False)
-
-    st.dataframe(
-        df_show[cols_show].head(50) if cols_show else df_show.head(50),
-        use_container_width=True,
+    df_join = pd.merge(
+        df_main,
+        df_fb_,
+        on=common,
+        suffixes=("_pred", "_fb"),
+        how="inner",
     )
 
+    # Normalizar nombres por comodidad
+    if "predicted_fat_percentage_pred" in df_join.columns:
+        df_join["y_pred"] = df_join["predicted_fat_percentage_pred"]
+    elif "predicted_fat_percentage" in df_join.columns:
+        df_join["y_pred"] = df_join["predicted_fat_percentage"]
 
-def main():
-    st.set_page_config(page_title="Monitorización Grasa Corporal", layout="wide")
+    if "real_fat_percentage" in df_join.columns:
+        df_join["y_true"] = df_join["real_fat_percentage"]
 
-    project, fs = get_hopsworks_client()
-    if project is None or fs is None:
-        st.error(
-            "No se pudo conectar a Hopsworks. "
-            "Comprueba HOPSWORKS_PROJECT, HOPSWORKS_API_KEY y HOPSWORKS_HOST en tu .env."
-        )
-        return
-
-    df_pred, df_fb = load_feature_groups(fs)
-    build_dashboard(df_pred, df_fb)
+    df_join = df_join.dropna(subset=["y_true", "y_pred"])
+    return df_join
 
 
-if __name__ == "__main__":
-    main()
+def compute_regression_metrics(df: pd.DataFrame):
+    """Calcula MAE, RMSE, R2 si hay columnas y_true / y_pred."""
+    if df.empty or "y_true" not in df.columns or "y_pred" not in df.columns:
+        return None
+
+    y_true = df["y_true"].astype(float)
+    y_pred = df["y_pred"].astype(float)
+
+    if len(y_true) == 0:
+        return None
+
+    mae = float(np.mean(np.abs(y_true - y_pred)))
+    rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+    # R2 manual:
+    ss_res = float(np.sum((y_true - y_pred) ** 2))
+    ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+    return {
+        "n": int(len(y_true)),
+        "MAE": round(mae, 3),
+        "RMSE": round(rmse, 3),
+        "R2": round(r2, 3) if not np.isnan(r2) else None,
+    }
+
+
+def simple_drift_report(df: pd.DataFrame, days_recent: int = 7):
+    """Compara medias históricas vs últimos días para algunas features numéricas."""
+    if df.empty:
+        return None
+
+    if "timestamp" not in df.columns:
+        return None
+
+    df_ = df.copy()
+    df_["timestamp"] = pd.to_datetime(df_["timestamp"], errors="coerce")
+    df_ = df_.dropna(subset=["timestamp"])
+    if df_.empty:
+        return None
+
+    cutoff = df_["timestamp"].max() - timedelta(days=days_recent)
+    df_old = df_[df_["timestamp"] < cutoff]
+    df_new = df_[df_["timestamp"] >= cutoff]
+
+    if df_old.empty or df_new.empty:
+        return None
+
+    candidates = ["age", "weight_kg", "bmi", "log_age"]
+    rows = []
+    for col in candidates:
+        if col in df_.columns:
+            m_old = df_old[col].mean()
+            m_new = df_new[col].mean()
+            diff = m_new - m_old
+            rel = (diff / m_old * 100) if m_old != 0 else np.nan
+            rows.append({
+                "feature": col,
+                "past_mean": round(m_old, 3),
+                "recent_mean": round(m_new, 3),
+                "abs_diff": round(diff, 3),
+                "rel_diff_%": round(rel, 2) if not np.isnan(rel) else None,
+            })
+
+    return pd.DataFrame(rows)
+
+
+# =========================
+# Layout
+# =========================
+
+# Estado conexión
+with st.sidebar:
+    st.header("🔐 Conexión Hopsworks")
+    if not (HOPSWORKS_PROJECT and HOPSWORKS_API_KEY):
+        st.error("Faltan variables HOPSWORKS en .env")
+    else:
+        st.success(f"Proyecto: {HOPSWORKS_PROJECT}")
+        st.caption(f"Host: {HOPSWORKS_HOST}")
+    st.markdown("---")
+    st.caption("Este panel es solo para uso interno (monitorización MLOps).")
+
+# Cargar datos
+try:
+    df_pred, df_fb = load_data()
+except Exception as e:
+    st.error(f"❌ Error al cargar datos desde Hopsworks:\n{e}")
+    st.stop()
+
+# Sección 1: Estado general
+st.subheader("📊 Estado general de predicciones")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Total predicciones registradas", len(df_pred))
+with col2:
+    st.metric("Registros con feedback", len(df_fb))
+with col3:
+    uniques = df_pred["email"].nunique() if "email" in df_pred.columns else 0
+    st.metric("Usuarios únicos", uniques)
+
+st.write("Vista rápida de las últimas predicciones:")
+st.dataframe(df_pred.sort_values("timestamp").tail(10), use_container_width=True)
+
+# Sección 2: Métricas de rendimiento (si hay feedback)
+st.subheader("🎯 Calidad del modelo (si hay feedback)")
+
+def join_with_feedback(df_pred: pd.DataFrame, df_fb: pd.DataFrame) -> pd.DataFrame:
+    """Une predicciones y feedback por user_id + email + timestamp redondeado."""
+    if df_fb.empty:
+        return pd.DataFrame()
+
+    df_main = df_pred.copy()
+    df_fb_ = df_fb.copy()
+
+    # Normalizar tipos clave
+    for c in ("user_id", "email"):
+        if c in df_main.columns:
+            df_main[c] = df_main[c].astype(str)
+        if c in df_fb_.columns:
+            df_fb_[c] = df_fb_[c].astype(str)
+
+    # Redondeo timestamp a segundos
+    df_main["timestamp"] = pd.to_datetime(df_main["timestamp"], errors="coerce").dt.round("S")
+    df_fb_["timestamp"] = pd.to_datetime(df_fb_["timestamp"], errors="coerce").dt.round("S")
+
+    # Join interno
+    on_cols = ["user_id", "email", "timestamp"]
+    common = [c for c in on_cols if c in df_main.columns and c in df_fb_.columns]
+    if len(common) < 2:
+        return pd.DataFrame()
+
+    df_join = pd.merge(
+        df_main,
+        df_fb_,
+        on=common,
+        suffixes=("_pred", "_fb"),
+        how="inner",
+    )
+
+    # -------- y_pred (predicción del modelo) ----------
+    if "predicted_fat_percentage_pred" in df_join.columns:
+        df_join["y_pred"] = df_join["predicted_fat_percentage_pred"]
+    elif "predicted_fat_percentage" in df_join.columns:
+        df_join["y_pred"] = df_join["predicted_fat_percentage"]
+
+    # -------- y_true (valor real del feedback) ----------
+    if "real_fat_percentage_fb" in df_join.columns:
+        df_join["y_true"] = df_join["real_fat_percentage_fb"]
+    elif "real_fat_percentage" in df_join.columns:
+        # fallback por si en algún momento no hay sufijos
+        df_join["y_true"] = df_join["real_fat_percentage"]
+
+    # Si no hemos podido crear ambas columnas, no seguimos
+    if "y_true" not in df_join.columns or "y_pred" not in df_join.columns:
+        return pd.DataFrame()
+
+    # Filtrar filas válidas
+    df_join = df_join.dropna(subset=["y_true", "y_pred"])
+
+    return df_join
+
+
+# Sección 3: Data Drift sencillo
+st.subheader("🌡️ Chequeo rápido de Data Drift")
+
+drift_df = simple_drift_report(df_pred)
+if drift_df is None or drift_df.empty:
+    st.info("Todavía no hay suficientes datos históricos para evaluar drift.")
+else:
+    st.write("Comparación de medias históricas vs últimos días:")
+    st.dataframe(drift_df, use_container_width=True)
+

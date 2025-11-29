@@ -1,104 +1,70 @@
-# ─────────────────────────────
-# 🐍 Archivos de Python y compilados
-# ─────────────────────────────
+# ============================================================
+# 🚀 Proyecto MLOps – GrasaCorporal
+# Reglas limpias y sin duplicados
+# ============================================================
+
+# ------------------------
+# 🐍 Python
+# ------------------------
 __pycache__/
-*.py[cod]
-*.so
+*.pyc
+*.pyo
+*.pyd
 
-# ─────────────────────────────
-# 📦 Entornos virtuales y empaquetado
-# ─────────────────────────────
-.Python
-.env
-*.env
+# ------------------------
+# 📦 Entornos virtuales
+# ------------------------
 .venv/
+venv/
 env/
-build/
-dist/
-.eggs/
-*.egg
-*.egg-info/
-.installed.cfg
+*.env
 
-# ─────────────────────────────
-# 🔧 Herramientas y editores
-# ─────────────────────────────
-.vscode/
-.idea/
-.spyproject/
-
-# ─────────────────────────────
-# 🧪 Pruebas y cobertura
-# ─────────────────────────────
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
+# ------------------------
+# 🧪 Tests / Cachés
+# ------------------------
 .mypy_cache/
-htmlcov/
+pytest_cache/
+.cache/
 
-# ─────────────────────────────
+# ------------------------
 # 📓 Notebooks
-# ─────────────────────────────
+# ------------------------
 .ipynb_checkpoints/
 
-# ─────────────────────────────
-# 📊 Datos del proyecto (ajusta si quieres versionar alguno)
-# ─────────────────────────────
-data/raw/
-data/interim/
-data/processed/
-feature_store/ 
+# ------------------------
+# 🧠 Modelos y artefactos
+# ------------------------
+models/*.pkl
+models/*.joblib
+models/debug_*.pkl
+
+# Si quieres subir SOLO el modelo final, desbloquear:
+#!models/rf_pipeline.pkl
+
+# ------------------------
+# 📊 Datos y logs locales
+# ------------------------
+backend/data_logs/
+feature_store/
 *.csv
 *.xlsx
 
-# ─────────────────────────────
-# 🧠 Modelos binarios
-# ─────────────────────────────
-#*.pkl
-#*.joblib
+# ------------------------
+# 🔧 Configuraciones locales
+# ------------------------
+.vscode/
+.idea/
+.streamlit/
+*.log
 
-# ─────────────────────────────
-# 💾 Archivos del sistema
-# ─────────────────────────────
+# ------------------------
+# 📁 Sistema operativo
+# ------------------------
 .DS_Store
 Thumbs.db
 
-# ─────────────────────────────
-# ✍️ Otros
-# ─────────────────────────────
-*.log
-*.swp
-*.swo
-debug_*.py
-models/debug_*.pkl
-models/preprocessor.joblib
-
-# Entorno virtual
-.venv/
-env/
-venv/
-
-# Config local / secretos
-.env
-*.env
-
-# Archivos Python cache
-__pycache__/
-*.py[cod]
-
-# Modelos y artefactos locales pesados
-models/*.pkl
-models/*.joblib
-!models/rf_pipeline.pkl  # si quieres subir solo este (opcional)
-
-# Scripts de depuración locales
-debug_*.py
-models/debug_*.pkl
-
-# Checkpoints de notebooks
-.ipynb_checkpoints/
-*/.ipynb_checkpoints/
+# ------------------------
+# 🛠 Docker
+# ------------------------
+*.pid
+*~

@@ -1,18 +1,66 @@
-# Dockerfile para backend FastAPI
-FROM python:3.11-slim
+# Dockerfile.back
+FROM python:3.10-bookworm
 
-# Crear directorio de trabajo
+# Evita prompts interactivos
+ENV DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /app
 
-# Copiar requirements e instalar dependencias
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ---------------------------------------
+# Dependencias del sistema
+# ---------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    build-essential \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copiar código completo
-COPY . .
+# ---------------------------------------
+# Instalar requirements del backend
+# ---------------------------------------
+COPY backend/requirements.txt requirements.txt
 
-# Exponer puerto para FastAPI
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# ---------------------------------------
+# Copiar código
+# ---------------------------------------
+COPY backend /app/backend
+COPY models /app/models
+COPY src /app/src
+
+# Crear carpeta para logs locales
+RUN mkdir -p /app/backend/data_logs
+
+# ---------------------------------------
+# Exponer puerto
+# ---------------------------------------
 EXPOSE 8000
 
-# Ejecutar FastAPI con Uvicorn
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# ---------------------------------------
+# Comando de arranque
+# ---------------------------------------
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
