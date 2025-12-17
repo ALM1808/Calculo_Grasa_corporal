@@ -2,14 +2,14 @@ import os
 import pandas as pd
 import requests
 import streamlit as st
-import matplotlib.pyplot as plt
 import altair as alt
 
 # ========================================================
 # CONFIGURACIÓN INICIAL
 # ========================================================
 
-API_URL = os.getenv("API_URL", "http://backend:8000").rstrip("/")
+API_URL = "http://127.0.0.1:8000"
+
 PREDICT_URL = f"{API_URL}/predict"
 FEEDBACK_URL = f"{API_URL}/feedback"
 HISTORY_URL = f"{API_URL}/history"
@@ -25,9 +25,8 @@ st.caption(f"Conectado al backend: **{API_URL}**")
 
 
 # ========================================================
-# ESTADO INICIAL
+# ESTADO DE SESIÓN
 # ========================================================
-
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = None
 
@@ -38,19 +37,17 @@ if "last_input" not in st.session_state:
 # ========================================================
 # TABS
 # ========================================================
-
 tab1, tab2, tab3 = st.tabs(["🧑‍⚕️ Predicción", "📬 Feedback", "📊 Histórico"])
 
 
 # ========================================================
 # TAB 1 — PREDICCIÓN
 # ========================================================
-
 with tab1:
     st.header("🧑‍⚕️ Obtener predicción")
 
     with st.form("prediction_form"):
-        email = st.text_input("Email (necesario para histórico)", "")
+        email = st.text_input("Email (necesario para histórico)", "").lower().strip()
 
         c1, c2, c3 = st.columns(3)
 
@@ -76,11 +73,11 @@ with tab1:
         submitted = st.form_submit_button("🧑‍⚕️ Obtener predicción")
 
     if submitted:
-        if not email.strip():
+        if not email:
             st.error("Introduce un email para poder guardar tu histórico.")
         else:
             payload = {
-                "email": email.strip(),
+                "email": email,
                 "age": age,
                 "gender": gender,
                 "weight_kg": weight_kg,
@@ -98,7 +95,7 @@ with tab1:
 
             try:
                 with st.spinner("Llamando a la API…"):
-                    resp = requests.post(PREDICT_URL, json=payload, timeout=15)
+                    resp = requests.post(PREDICT_URL, json=payload, timeout=20)
 
                 if resp.status_code == 200:
                     pred = float(resp.json()["predicted_fat_percentage"])
@@ -113,19 +110,20 @@ with tab1:
                 st.error(f"❌ Error al conectar con la API: {e}")
 
     if st.session_state.last_prediction:
-        st.info(f"📌 Última predicción guardada: **{st.session_state.last_prediction:.2f}%**")
+        st.info(
+            f"📌 Última predicción guardada: **{st.session_state.last_prediction:.2f}%**"
+        )
 
 
 # ========================================================
 # TAB 2 — FEEDBACK
 # ========================================================
-
 with tab2:
     st.header("📬 Enviar feedback (valor REAL)")
 
     real_value = st.number_input(
         "Introduce el valor REAL de grasa corporal (%)",
-        min_value=1.0, max_value=80.0, step=0.1
+        min_value=1.0, max_value=80.0, step=0.1,
     )
 
     send_fb = st.button("📨 Enviar feedback a la API")
@@ -142,7 +140,7 @@ with tab2:
 
             try:
                 with st.spinner("Enviando feedback…"):
-                    resp = requests.post(FEEDBACK_URL, json=fb_payload, timeout=10)
+                    resp = requests.post(FEEDBACK_URL, json=fb_payload, timeout=15)
 
                 if resp.status_code == 200:
                     st.success("Feedback enviado correctamente ✔")
@@ -154,17 +152,19 @@ with tab2:
 
 
 # ========================================================
-# TAB 3 — HISTÓRICO LOCAL DESDE CSV
+# TAB 3 — HISTÓRICO DESDE FIRESTORE (vía backend)
 # ========================================================
 
 def load_history(email: str):
     try:
-        email = email.strip().lower()
-        url = f"{HISTORY_URL}/{email}"
-        r = requests.get(url, timeout=10)
+        r = requests.get(
+            HISTORY_URL,
+            params={"email": email},
+            timeout=15
+        )
 
         if r.status_code != 200:
-            st.error("Error consultando el histórico.")
+            st.error(f"Error consultando histórico ({r.status_code})")
             return []
 
         return r.json().get("records", [])
@@ -175,32 +175,37 @@ def load_history(email: str):
 
 
 with tab3:
-    st.header("📊 Histórico de predicciones (CSV local)")
+    st.header("📊 Histórico de predicciones")
 
-    email_filter = st.text_input("Introduce tu email:")
+    email_filter = st.text_input("Introduce tu email para ver el histórico:")
 
     if email_filter:
-        records = load_history(email_filter)
+        records = load_history(email_filter.strip().lower())
 
         if not records:
             st.warning("No hay registros para este email.")
         else:
             df = pd.DataFrame(records)
 
-            # Ordenar
             if "timestamp" in df.columns:
                 df["timestamp"] = pd.to_datetime(df["timestamp"])
                 df = df.sort_values("timestamp")
 
             st.subheader("📄 Datos históricos")
-            st.dataframe(df)
+            st.dataframe(df, use_container_width=True)
 
-            # Gráfico
             if "predicted_fat_percentage" in df.columns:
-                chart = alt.Chart(df).mark_line(point=True).encode(
-                    x=alt.X("timestamp:T", title="Fecha"),
-                    y=alt.Y("predicted_fat_percentage:Q", title="% grasa corporal"),
+                chart = (
+                    alt.Chart(df)
+                    .mark_line(point=True)
+                    .encode(
+                        x=alt.X("timestamp:T", title="Fecha"),
+                        y=alt.Y("predicted_fat_percentage:Q", title="% grasa corporal"),
+                    )
                 )
+
                 st.subheader("📈 Evolución de predicciones")
                 st.altair_chart(chart, use_container_width=True)
+
+
 

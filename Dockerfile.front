@@ -1,36 +1,33 @@
+# Dockerfile.front
 FROM python:3.10-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias para compilar twofish (hopsworks)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        gcc \
-        build-essential \
-        python3-dev && \
-    rm -rf /var/lib/apt/lists/*
+# ---------------------------------------
+# Dependencias necesarias
+# ---------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    build-essential \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements del frontend
-COPY frontend/requirements.txt /app/requirements.txt
+COPY frontend/requirements.txt requirements.txt
 
-# Instalar dependencias del frontend
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
-# Instalar hopsworks (ahora sí que funciona)
-RUN pip install --no-cache-dir hopsworks
-
-# Eliminar herramientas de compilación para reducir tamaño
-RUN apt-get purge -y gcc build-essential python3-dev && \
-    apt-get autoremove -y
-
-# Copiar código del frontend
+# ---------------------------------------
+# Copiar app
+# ---------------------------------------
 COPY app /app/app
-
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "app/api_client_app.py", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "app/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+
 
 
 

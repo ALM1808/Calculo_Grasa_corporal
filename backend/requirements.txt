@@ -12,7 +12,15 @@ requests==2.31.0
 
 pyarrow>=14,<16
 
+# Firestore (solo esta línea, sin dependencias manuales)
 
+google-cloud-firestore==2.16.1
+google-api-core==2.17.1
+google-cloud-core==2.3.2
+google-auth==2.29.0
+google-cloud-logging
+
+hopsworks>=4.2.4
 
 
 
