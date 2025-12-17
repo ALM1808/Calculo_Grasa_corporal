@@ -7,11 +7,11 @@ steps:
       [
         'build',
         '-t',
-        'europe-west1-docker.pkg.dev/GrasaCorporalApp/grasa-backend/api:latest',
+        'europe-west1-docker.pkg.dev/grasacorporalapp/grasa-backend/api:latest',
         '-f',
         'Dockerfile.back',
         '.'
       ]
 
 images:
-  - 'europe-west1-docker.pkg.dev/GrasaCorporalApp/grasa-backend/api:latest'
+  - 'europe-west1-docker.pkg.dev/grasacorporalapp/grasa-backend/api:latest'
