@@ -18,6 +18,7 @@ import numpy as np
 import joblib
 
 from google.cloud import firestore
+from datetime import timezone
 
 # ======================================================
 # CONFIGURACIÓN LOGGING
@@ -156,7 +157,7 @@ def save_prediction_to_firestore(email: str, data: dict, pred: float):
         return
 
     try:
-        ts = datetime.utcnow().replace(microsecond=0)
+        ts = datetime.now(timezone.utc).replace(microsecond=0)
         doc_id = f"{email.replace('@','_')}__{ts.isoformat()}"
 
         fs.collection("predictions").document(doc_id).set({
@@ -178,7 +179,7 @@ def save_feedback_to_firestore(email: str, real: float, pred: Optional[float]):
     try:
         fs.collection("feedback").add({
             "email": email,
-            "timestamp": datetime.utcnow().replace(microsecond=0),
+            "timestamp": datetime.now(timezone.utc).replace(microsecond=0),
             "real_fat_percentage": float(real),
             "predicted_fat_percentage": float(pred) if pred is not None else None,
         })

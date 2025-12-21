@@ -110,10 +110,8 @@ with tab1:
             except Exception as e:
                 st.error(f"❌ Error al conectar con la API: {e}")
 
-    if st.session_state.last_prediction:
-        st.info(
-            f"📌 Última predicción guardada: **{st.session_state.last_prediction:.2f}%**"
-        )
+    if st.session_state.last_prediction is not None:
+        st.info(f"📌 Última predicción guardada: **{st.session_state.last_prediction:.2f}%**")
 
 
 # ========================================================
@@ -158,14 +156,10 @@ with tab2:
 
 def load_history(email: str):
     try:
-        r = requests.get(
-            HISTORY_URL,
-            params={"email": email},
-            timeout=15
-        )
+        r = requests.get(HISTORY_URL, params={"email": email}, timeout=15)
 
         if r.status_code != 200:
-            st.error(f"Error consultando histórico ({r.status_code})")
+            st.error(f"Error consultando histórico ({r.status_code}): {r.text}")
             return []
 
         return r.json().get("records", [])
@@ -188,25 +182,103 @@ with tab3:
         else:
             df = pd.DataFrame(records)
 
+            # --- Timestamp robusto (evita errores si hay None / formatos mezclados) ---
             if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-                df = df.sort_values("timestamp")
+                # Parse ISO / Timestamp ya convertido a string por el backend
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+            else:
+                df["timestamp"] = pd.NaT
 
-            st.subheader("📄 Datos históricos")
-            st.dataframe(df, use_container_width=True)
+            # Ordenar: los NaT al final (para no “romper” el gráfico)
+            df = df.sort_values("timestamp", na_position="last").reset_index(drop=True)
 
-            if "predicted_fat_percentage" in df.columns:
-                chart = (
-                    alt.Chart(df)
-                    .mark_line(point=True)
-                    .encode(
-                        x=alt.X("timestamp:T", title="Fecha"),
-                        y=alt.Y("predicted_fat_percentage:Q", title="% grasa corporal"),
-                    )
+            # --- Tabla “limpia”: no mostrar datos obvios/sensibles ---
+            # (email/age/gender fuera; y dejamos columnas útiles)
+            preferred_cols = [
+                "timestamp",
+                "predicted_fat_percentage",
+                "real_fat_percentage",
+                "weight_kg",
+                "session_duration_hours",
+                "workout_type",
+                "workout_frequency_days_week",
+                "avg_bpm",
+                "resting_bpm",
+                "max_bpm",
+                "calories_burned",
+                "water_intake_liters",
+                "experience_level",
+                "height_m",
+            ]
+            cols_present = [c for c in preferred_cols if c in df.columns]
+
+            df_table = df[cols_present].copy()
+
+            # Opcional: timestamps en formato legible (sigue siendo datetime internamente)
+            if "timestamp" in df_table.columns:
+                df_table["timestamp"] = df_table["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+            st.subheader("📄 Datos históricos (resumen)")
+            st.dataframe(df_table, use_container_width=True)
+
+            # --- Gráfico: predicted y real (si existe) ---
+            df_plot = df.copy()
+            df_plot = df_plot[df_plot["timestamp"].notna()].copy()
+
+            # Asegurar numéricos
+            if "predicted_fat_percentage" in df_plot.columns:
+                df_plot["predicted_fat_percentage"] = pd.to_numeric(
+                    df_plot["predicted_fat_percentage"], errors="coerce"
+                )
+            if "real_fat_percentage" in df_plot.columns:
+                df_plot["real_fat_percentage"] = pd.to_numeric(
+                    df_plot["real_fat_percentage"], errors="coerce"
                 )
 
-                st.subheader("📈 Evolución de predicciones")
-                st.altair_chart(chart, use_container_width=True)
+            metrics = []
+            if "predicted_fat_percentage" in df_plot.columns:
+                metrics.append(("Predicción", "predicted_fat_percentage"))
+            if "real_fat_percentage" in df_plot.columns:
+                # Solo tiene sentido si hay algún valor real informado
+                if df_plot["real_fat_percentage"].notna().any():
+                    metrics.append(("Real", "real_fat_percentage"))
+
+            if not metrics:
+                st.info("No hay datos suficientes para dibujar el gráfico.")
+            else:
+                df_long = []
+                for label, col in metrics:
+                    tmp = df_plot[["timestamp", col]].copy()
+                    tmp = tmp.rename(columns={col: "value"})
+                    tmp["serie"] = label
+                    df_long.append(tmp)
+
+                df_long = pd.concat(df_long, ignore_index=True)
+                df_long = df_long[df_long["value"].notna()]
+
+                if df_long.empty:
+                    st.info("No hay valores numéricos para dibujar el gráfico todavía.")
+                else:
+                    chart = (
+                        alt.Chart(df_long)
+                        .mark_line(point=True)
+                        .encode(
+                            x=alt.X("timestamp:T", title="Fecha"),
+                            y=alt.Y("value:Q", title="% grasa corporal"),
+                            color=alt.Color("serie:N", title="Serie"),
+                            tooltip=[
+                                alt.Tooltip("timestamp:T", title="Fecha"),
+                                alt.Tooltip("serie:N", title="Serie"),
+                                alt.Tooltip("value:Q", title="%"),
+                            ],
+                        )
+                    )
+
+                    st.subheader("📈 Evolución de predicciones (y real si existe)")
+                    st.altair_chart(chart, use_container_width=True)
+
+
+
 
 
 
