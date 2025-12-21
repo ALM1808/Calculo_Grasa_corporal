@@ -4,11 +4,12 @@ import requests
 import streamlit as st
 import altair as alt
 
+
 # ========================================================
 # CONFIGURACIÓN INICIAL
 # ========================================================
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = st.secrets.get("API_URL", os.getenv("API_URL", "http://127.0.0.1:8000")).rstrip("/")
 
 PREDICT_URL = f"{API_URL}/predict"
 FEEDBACK_URL = f"{API_URL}/feedback"

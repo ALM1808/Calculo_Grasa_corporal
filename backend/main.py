@@ -270,51 +270,53 @@ def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
 
     return {"status": "ok"}
 
+from google.cloud.firestore_v1 import FieldFilter
+
 @app.get("/history")
 def history(email: str = Query(..., min_length=3)):
-    try:
-        email = email.strip().lower()
+    email = email.strip().lower()
 
-        # ======================================================
-        # CLOUD RUN → FIRESTORE
-        # ======================================================
-        if os.getenv("K_SERVICE"):
-            records = load_history_from_firestore(email)
-            return {"records": jsonable_encoder(records)}
-
-        # ======================================================
-        # LOCAL → CSV
-        # ======================================================
-        fpath = LOG_PATH / "predictions.csv"
-        if not fpath.exists():
-            return {"records": []}
-
-        df = pd.read_csv(fpath)
-
-        if "email" not in df.columns:
-            return {"records": []}
-
-        df["email"] = df["email"].astype(str).str.strip().str.lower()
-        df = df[df["email"] == email].copy()
-
-        if df.empty:
-            return {"records": []}
-
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-            df = df.sort_values("timestamp")
-            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S%z")
-            df["timestamp"] = df["timestamp"].where(df["timestamp"].notna(), None)
-
-        df = df.replace([np.inf, -np.inf], np.nan)
-        df = df.where(pd.notnull(df), None)
-
-        records = df.to_dict(orient="records")
-        return {"records": jsonable_encoder(records)}
-
-    except Exception:
-        logger.exception("Error en histórico")
+    fs = get_firestore()
+    if fs is None:
+        logger.warning("Firestore no disponible")
         return {"records": []}
+
+    try:
+        query = (
+            fs.collection("predictions")
+            .where(filter=FieldFilter("email", "==", email))
+            .order_by("timestamp")
+        )
+
+        docs = query.stream()
+
+        records = []
+        for doc in docs:
+            data = doc.to_dict()
+
+            ts = data.get("timestamp")
+            if ts is not None and hasattr(ts, "isoformat"):
+                data["timestamp"] = ts.isoformat()
+
+            # Asegurar tipos JSON-friendly
+            if "predicted_fat_percentage" in data:
+                data["predicted_fat_percentage"] = float(
+                    data["predicted_fat_percentage"]
+                )
+
+            if "real_fat_percentage" in data and data["real_fat_percentage"] is not None:
+                data["real_fat_percentage"] = float(
+                    data["real_fat_percentage"]
+                )
+
+            records.append(data)
+
+        return {"records": records}
+
+    except Exception as e:
+        logger.exception(f"Error cargando histórico Firestore: {e}")
+        return {"records": []}
+
 
 
 
