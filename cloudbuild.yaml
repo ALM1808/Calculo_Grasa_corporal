@@ -13,5 +13,22 @@ steps:
         '.'
       ]
 
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'grasa-backend',
+        '--image',
+        'europe-west1-docker.pkg.dev/grasacorporalapp/grasa-backend/api:latest',
+        '--region',
+        'europe-west1',
+        '--platform',
+        'managed',
+        '--allow-unauthenticated'
+      ]
+
 images:
   - 'europe-west1-docker.pkg.dev/grasacorporalapp/grasa-backend/api:latest'
+
