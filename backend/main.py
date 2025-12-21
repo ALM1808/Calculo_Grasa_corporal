@@ -272,6 +272,9 @@ def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
 
 from google.cloud.firestore_v1 import FieldFilter
 
+from google.cloud.firestore_v1 import FieldFilter
+from fastapi import Query
+
 @app.get("/history")
 def history(email: str = Query(..., min_length=3)):
     email = email.strip().lower()
@@ -285,7 +288,6 @@ def history(email: str = Query(..., min_length=3)):
         query = (
             fs.collection("predictions")
             .where(filter=FieldFilter("email", "==", email))
-            .order_by("timestamp")
         )
 
         docs = query.stream()
@@ -298,7 +300,6 @@ def history(email: str = Query(..., min_length=3)):
             if ts is not None and hasattr(ts, "isoformat"):
                 data["timestamp"] = ts.isoformat()
 
-            # Asegurar tipos JSON-friendly
             if "predicted_fat_percentage" in data:
                 data["predicted_fat_percentage"] = float(
                     data["predicted_fat_percentage"]
@@ -310,6 +311,9 @@ def history(email: str = Query(..., min_length=3)):
                 )
 
             records.append(data)
+
+        # 🔥 ordenar aquí, no en Firestore
+        records.sort(key=lambda r: r.get("timestamp", ""))
 
         return {"records": records}
 
