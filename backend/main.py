@@ -20,6 +20,8 @@ import joblib
 from google.cloud import firestore
 from datetime import timezone
 
+from google.cloud.firestore_v1 import FieldFilter
+
 # ======================================================
 # CONFIGURACIÓN LOGGING
 # ======================================================
@@ -285,37 +287,85 @@ def history(email: str = Query(..., min_length=3)):
         logger.warning("Firestore no disponible")
         return {"records": []}
 
+    records = []
+
     try:
-        query = (
+        # ---------- PREDICTIONS ----------
+        pred_query = (
             fs.collection("predictions")
             .where(filter=FieldFilter("email", "==", email))
         )
 
-        docs = query.stream()
+        for doc in pred_query.stream():
+            data = doc.to_dict() or {}
 
-        records = []
-        for doc in docs:
-            data = doc.to_dict()
-
+            # timestamp: usar campo si existe; si no, fallback a create_time del documento
             ts = data.get("timestamp")
+            if ts is None:
+                ts = getattr(doc, "create_time", None)
+
             if ts is not None and hasattr(ts, "isoformat"):
                 data["timestamp"] = ts.isoformat()
+            else:
+                data["timestamp"] = None
 
-            if "predicted_fat_percentage" in data:
-                data["predicted_fat_percentage"] = float(
-                    data["predicted_fat_percentage"]
-                )
+            # asegurar tipos
+            if "predicted_fat_percentage" in data and data["predicted_fat_percentage"] is not None:
+                try:
+                    data["predicted_fat_percentage"] = float(data["predicted_fat_percentage"])
+                except Exception:
+                    pass
 
+            # en predictions normalmente no existe real_fat_percentage
             if "real_fat_percentage" in data and data["real_fat_percentage"] is not None:
-                data["real_fat_percentage"] = float(
-                    data["real_fat_percentage"]
-                )
+                try:
+                    data["real_fat_percentage"] = float(data["real_fat_percentage"])
+                except Exception:
+                    pass
+            else:
+                data["real_fat_percentage"] = None
 
+            data["source"] = "prediction"
             records.append(data)
 
-        # 🔥 ordenar aquí, no en Firestore
-        records.sort(key=lambda r: r.get("timestamp", ""))
+        # ---------- FEEDBACK ----------
+        fb_query = (
+            fs.collection("feedback")
+            .where(filter=FieldFilter("email", "==", email))
+        )
 
+        for doc in fb_query.stream():
+            data = doc.to_dict() or {}
+
+            ts = data.get("timestamp")
+            if ts is None:
+                ts = getattr(doc, "create_time", None)
+
+            if ts is not None and hasattr(ts, "isoformat"):
+                data["timestamp"] = ts.isoformat()
+            else:
+                data["timestamp"] = None
+
+            if "predicted_fat_percentage" in data and data["predicted_fat_percentage"] is not None:
+                try:
+                    data["predicted_fat_percentage"] = float(data["predicted_fat_percentage"])
+                except Exception:
+                    pass
+
+            if "real_fat_percentage" in data and data["real_fat_percentage"] is not None:
+                try:
+                    data["real_fat_percentage"] = float(data["real_fat_percentage"])
+                except Exception:
+                    pass
+
+            data["source"] = "feedback"
+            records.append(data)
+
+        # Orden robusto: primero los que tienen timestamp válido
+        def _key(r):
+            return (r.get("timestamp") is None, r.get("timestamp") or "")
+
+        records.sort(key=_key)
         return {"records": records}
 
     except Exception as e:
