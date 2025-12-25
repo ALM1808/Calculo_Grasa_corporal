@@ -249,7 +249,7 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
         **data,
     })
 
-    background_tasks.add_task(save_prediction_to_firestore, email, data, pred)
+    save_prediction_to_firestore(email, data, pred)
 
     return {"predicted_fat_percentage": pred}
 
