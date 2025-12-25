@@ -152,24 +152,16 @@ def get_firestore():
         return None
 
 
-def save_prediction_to_firestore(email: str, data: dict, pred: float):
+def save_prediction_to_firestore(email: str, record: dict):
     fs = get_firestore()
     if fs is None:
-        logger.info("Firestore no inicializado: se omite save_prediction_to_firestore")
         return
 
     try:
-        ts = datetime.now(timezone.utc).replace(microsecond=0)
-        doc_id = f"{email.replace('@','_')}__{ts.isoformat()}"
-
-        fs.collection("predictions").document(doc_id).set({
-            "email": email,
-            "timestamp": ts,  # Firestore lo guarda como timestamp nativo
-            "predicted_fat_percentage": float(pred),
-            **data,
-        })
+        doc_id = f"{email.replace('@','_')}__{record['timestamp'].isoformat()}"
+        fs.collection("predictions").document(doc_id).set(record)
     except Exception as e:
-        logger.warning(f"Fallo guardando predicción en Firestore: {e}")
+        logger.warning(f"Error guardando predicción en Firestore: {e}")
 
 
 def save_feedback_to_firestore(email: str, real: float, pred: Optional[float]):
@@ -232,26 +224,48 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
     data = input_data.dict()
     email = data["email"].lower().strip()
 
+    # ---------------------------
+    # 1. Timestamp ÚNICO y coherente
+    # ---------------------------
+    timestamp = datetime.utcnow().replace(microsecond=0)
+
+    # ---------------------------
+    # 2. DataFrame para el modelo
+    # ---------------------------
     df = pd.DataFrame([data])
     df["experience_level"] = df["experience_level"].astype(int)
 
     df_model = df.rename(columns=SNAKE_TO_MODEL)
-    df_model["BMI"] = df["weight_kg"] / df["height_m"]**2
+    df_model["BMI"] = df["weight_kg"] / df["height_m"] ** 2
     df_model["Log_Age"] = np.log1p(df["age"])
     df_model = df_model[EXPECTED_MODEL_COLS]
 
+    # ---------------------------
+    # 3. Predicción
+    # ---------------------------
     pred = round(float(get_model().predict(df_model)[0]), 2)
 
-    append_to_csv("predictions.csv", {
-        "timestamp": current_timestamp(),
+    # ---------------------------
+    # 4. Registro LIMPIO de histórico
+    # ---------------------------
+    record = {
+        "timestamp": timestamp,
         "email": email,
         "predicted_fat_percentage": pred,
-        **data,
-    })
+        "real_fat_percentage": None,
+        "weight_kg": data["weight_kg"],
+        "workout_type": data["workout_type"],
+        "session_duration_hours": data["session_duration_hours"],
+    }
 
-    save_prediction_to_firestore(email, data, pred)
+    append_to_csv("predictions.csv", record)
+    background_tasks.add_task(save_prediction_to_firestore, email, record)
 
+    # ---------------------------
+    # 5. Respuesta
+    # ---------------------------
     return {"predicted_fat_percentage": pred}
+
 
 @app.post("/feedback")
 def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
