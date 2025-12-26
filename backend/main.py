@@ -90,7 +90,6 @@ class FeedbackInput(BaseModel):
     predicted_fat_percentage: Optional[float] = None
     prediction_id: Optional[str] = None  # <- CLAVE para enlazar
 
-
 # ======================================================
 # MODEL
 # ======================================================
@@ -347,7 +346,7 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
 
 
 @app.post("/feedback")
-def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
+def feedback(input_data: FeedbackInput):
     """
     /feedback:
     - Si viene prediction_id -> actualiza ese doc en predictions (RECOMENDADO)
@@ -357,29 +356,44 @@ def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
 
     # CSV backup
     try:
-        append_to_csv("feedback.csv", {
-            "timestamp": utc_now_sec().isoformat(),
-            "email": email,
-            "real_fat_percentage": float(input_data.real_fat_percentage),
-            "predicted_fat_percentage": float(input_data.predicted_fat_percentage) if input_data.predicted_fat_percentage is not None else None,
-            "prediction_id": input_data.prediction_id,
-        })
+        append_to_csv(
+            "feedback.csv",
+            {
+                "timestamp": utc_now_sec().isoformat(),
+                "email": email,
+                "real_fat_percentage": float(input_data.real_fat_percentage),
+                "predicted_fat_percentage": (
+                    float(input_data.predicted_fat_percentage)
+                    if input_data.predicted_fat_percentage is not None
+                    else None
+                ),
+                "prediction_id": input_data.prediction_id,
+            },
+        )
     except Exception as e:
         logger.warning(f"No se pudo guardar CSV feedback.csv: {e}")
 
     if input_data.prediction_id:
-        background_tasks.add_task(
-            update_prediction_with_feedback,
+        # 🔴 CAMBIO CLAVE: ejecución directa (NO background task)
+        update_prediction_with_feedback(
             input_data.prediction_id,
             float(input_data.real_fat_percentage),
-            float(input_data.predicted_fat_percentage) if input_data.predicted_fat_percentage is not None else None,
+            (
+                float(input_data.predicted_fat_percentage)
+                if input_data.predicted_fat_percentage is not None
+                else None
+            ),
         )
     else:
-        background_tasks.add_task(
-            save_feedback_fallback,
+        # fallback puede quedarse en background si quieres
+        save_feedback_fallback(
             email,
             float(input_data.real_fat_percentage),
-            float(input_data.predicted_fat_percentage) if input_data.predicted_fat_percentage is not None else None,
+            (
+                float(input_data.predicted_fat_percentage)
+                if input_data.predicted_fat_percentage is not None
+                else None
+            ),
         )
 
     return {"status": "ok"}
