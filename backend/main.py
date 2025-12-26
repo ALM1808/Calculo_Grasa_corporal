@@ -470,7 +470,7 @@ def metrics(email: Optional[str] = Query(None)):
             data = doc.to_dict() or {}
 
             # ⬅️ SOLO predicciones con feedback real
-            if data.get("real_fat_percentage") is not None:
+            if data.get("abs_error") is not None:
                 records.append(data)
 
         if not records:
