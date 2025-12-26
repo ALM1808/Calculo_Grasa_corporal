@@ -469,16 +469,24 @@ def metrics(email: Optional[str] = Query(None)):
         for doc in query.stream():
             data = doc.to_dict() or {}
 
-            # ⬅️ SOLO predicciones con feedback real
-            if data.get("abs_error") is not None:
-                records.append(data)
+            # aceptar real tanto en 'real_fat_percentage' como en 'real_fat_percentage_feedback'
+            real = data.get("real_fat_percentage")
+            if real is None:
+                real = data.get("real_fat_percentage_feedback")
+            # aceptar pred tanto en 'predicted_fat_percentage' como en 'predicted_fat_percentage_feedback'
+            pred = data.get("predicted_fat_percentage")
+            if pred is None:
+                pred = data.get("predicted_fat_percentage_feedback")
 
+            if real is not None and pred is not None:
+                data["real_fat_percentage"] = float(real)
+                data["predicted_fat_percentage"] = float(pred)
+                records.append(data)
         if not records:
             return {"metrics": {}}
-
         metrics = aggregate_error_metrics(records)
         return {"metrics": metrics}
-
+        
     except Exception:
         logger.exception("Error calculando métricas agregadas")
         return {"metrics": {}}
