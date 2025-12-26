@@ -171,22 +171,34 @@ def save_prediction_to_firestore(prediction_id: str, record: Dict[str, Any]) -> 
         logger.warning(f"Error guardando predicción en Firestore: {e}")
 
 
-def update_prediction_with_feedback(prediction_id: str, real: float, pred: Optional[float]) -> None:
+def update_prediction_with_feedback(
+    prediction_id: str,
+    real: float,
+    pred: Optional[float],
+) -> None:
     fs = get_firestore()
     if fs is None:
         logger.info("Firestore no inicializado: se omite update_prediction_with_feedback")
         return
+
     try:
         patch = {
             "real_fat_percentage": float(real),
             "feedback_timestamp": utc_now_sec(),
         }
+
         if pred is not None:
             patch["predicted_fat_percentage_feedback"] = float(pred)
+            patch.update(compute_error_metrics(real, pred))
 
-        fs.collection("predictions").document(prediction_id).set(patch, merge=True)
+        fs.collection("predictions").document(prediction_id).set(
+            patch,
+            merge=True,
+        )
+
     except Exception as e:
-        logger.warning(f"Error actualizando predicción con feedback en Firestore: {e}")
+        logger.warning(f"Error actualizando métricas en Firestore: {e}")
+
 
 
 def save_feedback_fallback(email: str, real: float, pred: Optional[float]) -> None:
@@ -204,6 +216,46 @@ def save_feedback_fallback(email: str, real: float, pred: Optional[float]) -> No
     except Exception as e:
         logger.warning(f"Fallo guardando feedback en Firestore (fallback): {e}")
 
+def compute_error_metrics(real: float, pred: float) -> dict:
+    abs_error = abs(real - pred)
+    signed_error = real - pred
+    relative_error = (abs_error / real * 100) if real != 0 else None
+
+    return {
+        "abs_error": round(abs_error, 3),
+        "signed_error": round(signed_error, 3),
+        "relative_error": round(relative_error, 2) if relative_error is not None else None,
+    }
+
+def aggregate_error_metrics(records: list) -> dict:
+    """
+    Calcula métricas agregadas a partir de records con feedback
+    """
+    df = pd.DataFrame(records)
+
+    if df.empty:
+        return {}
+
+    # Solo registros con feedback real
+    df = df[df["real_fat_percentage"].notna()].copy()
+
+    if df.empty:
+        return {}
+
+    # Asegurar numéricos
+    df["predicted_fat_percentage"] = pd.to_numeric(df["predicted_fat_percentage"], errors="coerce")
+    df["real_fat_percentage"] = pd.to_numeric(df["real_fat_percentage"], errors="coerce")
+
+    df["abs_error"] = (df["real_fat_percentage"] - df["predicted_fat_percentage"]).abs()
+    df["signed_error"] = df["real_fat_percentage"] - df["predicted_fat_percentage"]
+    df["relative_error"] = df["abs_error"] / df["real_fat_percentage"] * 100
+
+    return {
+        "n_feedback": int(len(df)),
+        "mae": round(df["abs_error"].mean(), 3),
+        "mean_signed_error": round(df["signed_error"].mean(), 3),
+        "mean_relative_error_pct": round(df["relative_error"].mean(), 2),
+    }
 
 # ======================================================
 # ENDPOINTS
@@ -383,6 +435,36 @@ def history(email: str = Query(..., min_length=3)):
         logger.exception(f"Error cargando histórico Firestore: {e}")
         return {"records": []}
 
+@app.get("/metrics")
+def metrics(email: Optional[str] = Query(None)):
+    """
+    Métricas agregadas:
+    - Globales si no hay email
+    - Por usuario si se pasa email
+    """
+    fs = get_firestore()
+    if fs is None:
+        return {"metrics": {}}
+
+    try:
+        query = fs.collection("predictions")
+
+        if email:
+            email = email.strip().lower()
+            query = query.where(filter=FieldFilter("email", "==", email))
+
+        records = []
+        for doc in query.stream():
+            data = doc.to_dict() or {}
+            if "real_fat_percentage" in data:
+                records.append(data)
+
+        metrics = aggregate_error_metrics(records)
+        return {"metrics": metrics}
+
+    except Exception as e:
+        logger.exception("Error calculando métricas agregadas")
+        return {"metrics": {}}
 
 
 
