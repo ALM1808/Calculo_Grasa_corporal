@@ -468,15 +468,21 @@ def metrics(email: Optional[str] = Query(None)):
         records = []
         for doc in query.stream():
             data = doc.to_dict() or {}
-            if "real_fat_percentage" in data:
+
+            # ⬅️ SOLO predicciones con feedback real
+            if data.get("real_fat_percentage") is not None:
                 records.append(data)
+
+        if not records:
+            return {"metrics": {}}
 
         metrics = aggregate_error_metrics(records)
         return {"metrics": metrics}
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error calculando métricas agregadas")
         return {"metrics": {}}
+
 
 
 
