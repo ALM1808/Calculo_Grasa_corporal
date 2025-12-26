@@ -151,10 +151,17 @@ def append_to_csv(filename: str, row: Dict[str, Any]) -> None:
 # ======================================================
 # FIRESTORE
 # ======================================================
+# ======================================================
+# FIRESTORE
+# ======================================================
+from functools import lru_cache
+from google.cloud import firestore
+
 @lru_cache(maxsize=1)
 def get_firestore():
     try:
-        return firestore.Client()
+        # FORZAR uso de la base (default)
+        return firestore.Client(database="(default)")
     except Exception as e:
         logger.warning(f"Firestore no disponible: {e}")
         return None
