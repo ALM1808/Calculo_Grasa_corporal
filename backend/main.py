@@ -388,38 +388,45 @@ def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
     return {"status": "ok"}
 
 
+from fastapi import Query
+from fastapi.encoders import jsonable_encoder
+from google.cloud.firestore_v1 import FieldFilter
+
 @app.get("/history")
 def history(email: str = Query(..., min_length=3)):
     """
     /history (Firestore):
     - Lee de predictions filtrando por email
-    - Ordena por timestamp
+    - NO usa order_by en Firestore (evita índices compuestos)
+    - Ordena por timestamp en Python
     - Devuelve timestamps ISO + tipos JSON-friendly
     """
     email = email.strip().lower()
+
     fs = get_firestore()
     if fs is None:
         logger.warning("Firestore no disponible")
         return {"records": []}
 
+    records = []
+
     try:
-        query = (
-            fs.collection("predictions")
-            .where(filter=FieldFilter("email", "==", email))
-            .order_by("timestamp")
+        query = fs.collection("predictions").where(
+            filter=FieldFilter("email", "==", email)
         )
 
-        records = []
         for doc in query.stream():
             data = doc.to_dict() or {}
 
+            # timestamp robusto
             ts = data.get("timestamp")
             if ts is not None and hasattr(ts, "isoformat"):
                 data["timestamp"] = ts.isoformat()
             else:
-                # fallback por si algún doc viejo no lo tiene
                 ct = getattr(doc, "create_time", None)
-                data["timestamp"] = ct.isoformat() if (ct is not None and hasattr(ct, "isoformat")) else None
+                data["timestamp"] = (
+                    ct.isoformat() if (ct is not None and hasattr(ct, "isoformat")) else None
+                )
 
             # asegurar floats
             if data.get("predicted_fat_percentage") is not None:
@@ -435,6 +442,9 @@ def history(email: str = Query(..., min_length=3)):
                     pass
 
             records.append(data)
+
+        # 🔑 ORDENACIÓN SEGURA EN PYTHON
+        records.sort(key=lambda r: r.get("timestamp") or "")
 
         return {"records": jsonable_encoder(records)}
 
