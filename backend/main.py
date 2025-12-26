@@ -155,12 +155,14 @@ def append_to_csv(filename: str, row: Dict[str, Any]) -> None:
 from functools import lru_cache
 from google.cloud import firestore
 
+@lru_cache(maxsize=1)
 def get_firestore():
     try:
-        return firestore.Client(project=os.environ["GOOGLE_CLOUD_PROJECT"])
+        return firestore.Client()
     except Exception as e:
-        logger.error(f"Firestore init error: {e}")
+        logger.warning(f"Firestore no disponible: {e}")
         return None
+
 
 def save_prediction_to_firestore(prediction_id: str, record: Dict[str, Any]) -> None:
     fs = get_firestore()
