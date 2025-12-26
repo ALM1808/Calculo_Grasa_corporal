@@ -396,7 +396,11 @@ def feedback(input_data: FeedbackInput):
             ),
         )
 
-    return {"status": "ok"}
+    return {
+    "status": "ok",
+    "debug_prediction_id": input_data.prediction_id,
+    "debug_real": input_data.real_fat_percentage,
+    }
 
 
 from fastapi import Query
