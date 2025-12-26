@@ -392,8 +392,8 @@ def history(email: str = Query(..., min_length=3)):
     """
     /history (Firestore):
     - Lee de predictions filtrando por email
-    - NO usa order_by en Firestore (evita índices compuestos)
-    - Ordena por timestamp en Python
+    - NO usa order_by en Firestore
+    - Ordena por timestamp en Python (robusto)
     - Devuelve timestamps ISO + tipos JSON-friendly
     """
     email = email.strip().lower()
@@ -413,17 +413,15 @@ def history(email: str = Query(..., min_length=3)):
         for doc in query.stream():
             data = doc.to_dict() or {}
 
-            # timestamp robusto
+            # --- timestamp robusto ---
             ts = data.get("timestamp")
             if ts is not None and hasattr(ts, "isoformat"):
                 data["timestamp"] = ts.isoformat()
             else:
                 ct = getattr(doc, "create_time", None)
-                data["timestamp"] = (
-                    ct.isoformat() if (ct is not None and hasattr(ct, "isoformat")) else None
-                )
+                data["timestamp"] = ct.isoformat() if ct else None
 
-            # asegurar floats
+            # --- asegurar tipos numéricos ---
             if data.get("predicted_fat_percentage") is not None:
                 try:
                     data["predicted_fat_percentage"] = float(data["predicted_fat_percentage"])
