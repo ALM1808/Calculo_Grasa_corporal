@@ -387,15 +387,7 @@ def feedback(input_data: FeedbackInput, background_tasks: BackgroundTasks):
 
     return {"status": "ok"}
 
-@app.get("/history")
-def history(email: str = Query(..., min_length=3)):
-    return {
-        "debug": "ESTE BACKEND ESTA VIVO",
-        "email": email,
-        "service": os.getenv("K_SERVICE"),
-        "revision": os.getenv("K_REVISION"),
-        "project": os.getenv("GOOGLE_CLOUD_PROJECT"),
-    }
+
 @app.get("/history")
 def history(email: str = Query(..., min_length=3)):
     """
