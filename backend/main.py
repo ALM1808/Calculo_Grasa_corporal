@@ -1,3 +1,4 @@
+# DEPLOY MARKER: training-data endpoint enabled
 # backend/main.py
 import sys
 if "nest_asyncio" in sys.modules:
