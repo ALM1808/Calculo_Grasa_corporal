@@ -246,19 +246,29 @@ def aggregate_error_metrics(records: list) -> dict:
         return {}
 
     # Asegurar numéricos
-    df["predicted_fat_percentage"] = pd.to_numeric(df["predicted_fat_percentage"], errors="coerce")
-    df["real_fat_percentage"] = pd.to_numeric(df["real_fat_percentage"], errors="coerce")
+    df["predicted_fat_percentage"] = pd.to_numeric(
+        df["predicted_fat_percentage"], errors="coerce"
+    )
+    df["real_fat_percentage"] = pd.to_numeric(
+        df["real_fat_percentage"], errors="coerce"
+    )
 
     df["abs_error"] = (df["real_fat_percentage"] - df["predicted_fat_percentage"]).abs()
     df["signed_error"] = df["real_fat_percentage"] - df["predicted_fat_percentage"]
     df["relative_error"] = df["abs_error"] / df["real_fat_percentage"] * 100
 
+    rmse = None
+    if len(df) >= 2:
+        rmse = (df["signed_error"] ** 2).mean() ** 0.5
+
     return {
-        "n_feedback": int(len(df)),
+        "count": int(len(df)),  # 👈 CLAVE
         "mae": round(df["abs_error"].mean(), 3),
+        "rmse": round(rmse, 3) if rmse is not None else None,
         "mean_signed_error": round(df["signed_error"].mean(), 3),
-        "mean_relative_error_pct": round(df["relative_error"].mean(), 2),
+        "mean_relative_error": round(df["relative_error"].mean(), 2),
     }
+
 
 # ======================================================
 # ENDPOINTS
