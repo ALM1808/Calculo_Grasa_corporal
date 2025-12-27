@@ -516,6 +516,39 @@ def metrics(email: Optional[str] = Query(None)):
         logger.exception("Error calculando métricas agregadas")
         return {"metrics": {}}
 
+@app.get("/training-data")
+def get_training_data():
+    """
+    Devuelve registros válidos para reentrenamiento:
+    - tienen real_fat_percentage
+    """
+    fs = get_firestore()
+    if fs is None:
+        return {"records": []}
+
+    records = []
+
+    try:
+        for doc in fs.collection("predictions").stream():
+            data = doc.to_dict() or {}
+
+            real = data.get("real_fat_percentage")
+            if real is None:
+                continue
+
+            # asegurar numéricos
+            data["real_fat_percentage"] = float(real)
+            data["predicted_fat_percentage"] = float(
+                data.get("predicted_fat_percentage", 0)
+            )
+
+            records.append(data)
+
+        return {"records": records}
+
+    except Exception:
+        logger.exception("Error extrayendo training data")
+        return {"records": []}
 
 
 
