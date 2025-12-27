@@ -95,10 +95,18 @@ with tab1:
                     resp = requests.post(PREDICT_URL, json=payload, timeout=20)
 
                 if resp.status_code == 200:
-                    pred = float(resp.json()["predicted_fat_percentage"])
+                    data = resp.json()
+
+                    pred = float(data["predicted_fat_percentage"])
+                    prediction_id = data["prediction_id"]
+
                     st.session_state.last_prediction = pred
+                    st.session_state.last_prediction_id = prediction_id
                     st.session_state.last_input = payload
+
                     st.success(f"Predicción obtenida: **{pred:.2f}%** de grasa corporal")
+                    st.caption(f"🆔 prediction_id: {prediction_id}")
+
                 else:
                     st.error(f"Error {resp.status_code}: {resp.text}")
 
@@ -129,6 +137,7 @@ with tab2:
                 "email": st.session_state.last_input["email"],
                 "real_fat_percentage": float(real_value),
                 "predicted_fat_percentage": float(st.session_state.last_prediction),
+                "prediction_id": st.session_state.get("last_prediction_id"),
             }
 
             try:
@@ -211,6 +220,20 @@ def parse_timestamp_series(s: pd.Series) -> pd.Series:
 
     return s.apply(_one)
 
+def load_metrics(email: str | None = None):
+    try:
+        params = {"email": email} if email else None
+        r = requests.get(f"{API_URL}/metrics", params=params, timeout=15)
+
+        if r.status_code != 200:
+            st.error(f"Error cargando métricas ({r.status_code})")
+            return None
+
+        return r.json().get("metrics", {})
+
+    except Exception as e:
+        st.error(f"Error llamando a /metrics: {e}")
+        return None
 
 with tab3:
     st.header("📊 Histórico de predicciones")
@@ -318,6 +341,44 @@ with tab3:
                     st.subheader("📈 Evolución (Predicción y Real si existe)")
                     st.altair_chart(chart, use_container_width=True)
 
+with tab4:
+    st.header("📐 Métricas del modelo")
+
+    scope = st.radio(
+        "Ámbito de las métricas",
+        ["Globales", "Por usuario"],
+        horizontal=True,
+    )
+
+    email_metrics = None
+    if scope == "Por usuario":
+        email_metrics = st.text_input(
+            "Email para métricas",
+            value=st.session_state.get("last_input", {}).get("email", "")
+        ).strip().lower()
+
+        if not email_metrics:
+            st.info("Introduce un email para ver métricas por usuario.")
+            st.stop()
+
+    metrics = load_metrics(email_metrics)
+
+    if not metrics:
+        st.warning("No hay métricas disponibles todavía (faltan feedbacks).")
+        st.stop()
+
+    # ---- KPIs ----
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("📊 Nº registros", metrics.get("count", 0))
+    c2.metric("📉 MAE", metrics.get("mae", "–"))
+    c3.metric("📐 RMSE", metrics.get("rmse", "–"))
+    c4.metric("⚖️ Error medio", metrics.get("mean_signed_error", "–"))
+
+    st.metric(
+        "📎 Error relativo medio (%)",
+        metrics.get("mean_relative_error", "–"),
+    )
 
 
 
