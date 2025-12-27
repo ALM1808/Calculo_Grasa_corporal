@@ -231,21 +231,17 @@ def compute_error_metrics(real: float, pred: float) -> dict:
     }
 
 def aggregate_error_metrics(records: list) -> dict:
-    """
-    Calcula métricas agregadas a partir de records con feedback
-    """
+    import pandas as pd
+
     df = pd.DataFrame(records)
 
     if df.empty:
         return {}
 
-    # Solo registros con feedback real
     df = df[df["real_fat_percentage"].notna()].copy()
-
     if df.empty:
         return {}
 
-    # Asegurar numéricos
     df["predicted_fat_percentage"] = pd.to_numeric(
         df["predicted_fat_percentage"], errors="coerce"
     )
@@ -262,12 +258,13 @@ def aggregate_error_metrics(records: list) -> dict:
         rmse = (df["signed_error"] ** 2).mean() ** 0.5
 
     return {
-        "count": int(len(df)),  # 👈 CLAVE
+        "count": int(len(df)),                 # 👈 CLAVE
         "mae": round(df["abs_error"].mean(), 3),
-        "rmse": round(rmse, 3) if rmse is not None else None,
+        "rmse": round(rmse, 3) if rmse else None,
         "mean_signed_error": round(df["signed_error"].mean(), 3),
         "mean_relative_error": round(df["relative_error"].mean(), 2),
     }
+
 
 
 # ======================================================
