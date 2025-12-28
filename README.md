@@ -1,52 +1,128 @@
-# 💪 GrasaCorporal — Plataforma de Predicción de Grasa Corporal  
-**Proyecto MLOps completo con FastAPI (backend), Streamlit (frontend) y Docker (despliegue local).**
+## 🧠 Predicción de Grasa Corporal — Proyecto MLOps
 
-Este proyecto permite predecir el porcentaje de grasa corporal de una persona a partir de datos fisiológicos y de entrenamiento, usando un modelo de Machine Learning entrenado con un pipeline completo.  
-Incluye histórico de predicciones, envío de feedback y visualización temporal.
+Este proyecto implementa un sistema completo de **Machine Learning en producción** para predecir el **porcentaje de grasa corporal** a partir de datos físicos y de actividad, incorporando **feedback real**, **monitorización del modelo** y **reentrenamiento automático**.
 
----
-
-# 🚀 Tecnologías utilizadas
-
-### **Backend (API)**
-- FastAPI  
-- Python 3.10  
-- scikit-learn  
-- joblib  
-- Pandas / NumPy  
-- Contenedorización con Docker
-
-### **Frontend (UI)**
-- Streamlit  
-- Requests  
-- Matplotlib  
-
-### **Infraestructura**
-- Docker + Docker Compose (2 contenedores: frontend & backend)  
-- CSV como almacenamiento local de predicciones y feedback  
-  (Hopsworks deshabilitado dentro de Docker por incompatibilidades del SDK)
+El objetivo es construir un flujo **end-to-end MLOps**, desde la predicción hasta el autoaprendizaje continuo.
 
 ---
 
-# 🏗 Arquitectura del proyecto
+## Funcionalidades principales
 
-📦 proyecto/
-├── backend/
-│ ├── main.py # API FastAPI
-│ ├── requirements.txt # Dependencias del backend
-│ ├── data_logs/ # Logs y CSVs generados por la API
-│ └── ...
+### 1. Predicción en tiempo real
+- API REST con **FastAPI**
+- Modelo ML entrenado con `scikit-learn`
+- Endpoint `/predict`:
+  - recibe datos del usuario
+  - devuelve predicción
+  - guarda la predicción en base de datos
+
+### 2. Feedback real del usuario
+- El usuario puede introducir su **valor real de grasa corporal**
+- Endpoint `/feedback`
+- El feedback se enlaza a la predicción original mediante `prediction_id`
+
+### 3. Almacenamiento persistente
+- **Google Firestore** como fuente de verdad
+- Cada predicción se guarda con:
+  - features
+  - predicción
+  - valor real (cuando existe)
+  - errores calculados
+
+### 4. Monitorización del modelo
+- Endpoint `/metrics`
+- Cálculo automático de:
+  - MAE
+  - RMSE
+  - error medio
+  - error relativo
+- Métricas globales o por usuario
+
+### 5. Dataset vivo para reentrenamiento
+- Endpoint `/training-data`
+- Extrae automáticamente solo registros **válidos**:
+  - con `real_fat_percentage`
+  - con features completas
+- Fuente directa para nuevos entrenamientos
+
+### 6. Reentrenamiento y comparación de modelos
+- Script `backend/train_compare.py`
+- Compara:
+  - **Modelo v1** (en producción)
+  - **Modelo v2** (reentrenado con nuevos datos)
+- Métricas comparadas: MAE y RMSE
+
+### 7. Automatización con GitHub Actions
+- Workflow `Retrain and Compare Model`
+- Ejecución:
+  - manual (`workflow_dispatch`)
+  - programable (cron)
+- El pipeline:
+  - descarga datos reales
+  - reentrena el modelo
+  - compara versiones
+  - guarda artefactos del nuevo modelo
+
+---
+
+## Arquitectura
+
+────────────┐
+│ Streamlit │ ← Frontend (usuario)
+└─────┬──────┘
+│ HTTP
+┌─────▼──────┐
+│ FastAPI │ ← Backend (Cloud Run)
+│ /predict │
+│ /feedback │
+│ /metrics │
+│ /history │
+│ /training-data
+└─────┬──────┘
 │
-├── frontend/
-│ ├── app.py # Interfaz Streamlit
-│ ├── requirements.txt # Dependencias del frontend
-│ └── ...
+┌─────▼──────────┐
+│ Firestore │ ← Fuente de verdad
+│ predictions │
+└─────┬──────────┘
 │
-├── models/
-│ └── rf_pipeline.pkl # Modelo entrenado (si decides versionarlo)
-│
-├── docker-compose.yml
-├── Dockerfile.front
-├── Dockerfile.back
-├── .gitignore
-└── README.md
+┌─────▼────────────────┐
+│ GitHub Actions │
+│ train_compare.py │
+│ Comparación v1 vs v2 │
+└──────────────────────┘
+
+---
+
+## Tecnologías utilizadas
+
+- **Python 3.11**
+- **FastAPI**
+- **Streamlit**
+- **scikit-learn**
+- **Pandas / NumPy**
+- **Google Firestore**
+- **Google Cloud Run**
+- **GitHub Actions**
+- **Docker (preparado para despliegue)**
+
+---
+
+## Estado del proyecto
+
+✔ Predicción en producción  
+✔ Feedback real  
+✔ Métricas automáticas  
+✔ Dataset vivo  
+✔ Reentrenamiento automatizado  
+✔ Comparación de modelos  
+
+🔜 Pendiente:
+- Promoción automática del mejor modelo
+- Registro de modelos (Model Registry)
+- Despliegue automático del modelo ganador
+
+---
+
+## 👤 Autor
+
+Proyecto desarrollado como ejercicio completo de **MLOps aplicado**, integrando backend, frontend, ML y CI/CD.
