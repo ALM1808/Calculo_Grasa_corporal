@@ -316,8 +316,7 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
         "email": email,
         "timestamp": ts,  # Firestore timestamp nativo (datetime aware)
         "predicted_fat_percentage": float(pred),
-        "_deploy_marker": "age_gender_v1",
-
+        
         # campos útiles para histórico
         "weight_kg": float(data["weight_kg"]),
         "height_m": float(data["height_m"]),
@@ -523,8 +522,9 @@ def metrics(email: Optional[str] = Query(None)):
 @app.get("/training-data")
 def get_training_data():
     """
-    Devuelve registros válidos para reentrenamiento:
-    - tienen real_fat_percentage
+    Devuelve registros válidos para reentrenamiento (dataset):
+    - Solo filas que tengan real_fat_percentage
+    - Devuelve FEATURES + TARGET (real_fat_percentage)
     """
     fs = get_firestore()
     if fs is None:
@@ -540,19 +540,49 @@ def get_training_data():
             if real is None:
                 continue
 
-            # asegurar numéricos
-            data["real_fat_percentage"] = float(real)
-            data["predicted_fat_percentage"] = float(
-                data.get("predicted_fat_percentage", 0)
-            )
+            try:
+                record = {
+                    # --- FEATURES ---
+                    "age": int(data["age"]),
+                    "gender": data["gender"],
+                    "weight_kg": float(data["weight_kg"]),
+                    "height_m": float(data["height_m"]),
+                    "max_bpm": int(data["max_bpm"]),
+                    "avg_bpm": int(data["avg_bpm"]),
+                    "resting_bpm": int(data["resting_bpm"]),
+                    "session_duration_hours": float(data["session_duration_hours"]),
+                    "calories_burned": float(data["calories_burned"]),
+                    "workout_type": data["workout_type"],
+                    "water_intake_liters": float(data["water_intake_liters"]),
+                    "workout_frequency_days_week": int(data["workout_frequency_days_week"]),
+                    "experience_level": int(data["experience_level"]),
 
-            records.append(data)
+                    # --- TARGET ---
+                    "real_fat_percentage": float(real),
+
+                    # --- OPCIONAL (para análisis / debug / trazabilidad) ---
+                    "predicted_fat_percentage": float(data.get("predicted_fat_percentage", 0.0)),
+                    "timestamp": (
+                        data["timestamp"].isoformat()
+                        if hasattr(data.get("timestamp"), "isoformat")
+                        else data.get("timestamp")
+                    ),
+                    "email": data.get("email"),
+                    "prediction_id": data.get("prediction_id"),
+                }
+
+                records.append(record)
+
+            except Exception:
+                # Si un registro está incompleto o con tipos raros, lo saltamos
+                continue
 
         return {"records": records}
 
     except Exception:
         logger.exception("Error extrayendo training data")
         return {"records": []}
+
 
 
 
