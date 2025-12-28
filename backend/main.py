@@ -329,6 +329,8 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
         "calories_burned": float(data["calories_burned"]),
         "water_intake_liters": float(data["water_intake_liters"]),
         "experience_level": int(data["experience_level"]),
+        "age": int(data["age"]),
+        "gender": data["gender"],
 
         # feedback (se rellenará cuando llegue)
         "real_fat_percentage": None,
