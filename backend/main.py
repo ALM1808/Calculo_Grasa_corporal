@@ -316,6 +316,7 @@ def predict(input_data: PredictionInput, background_tasks: BackgroundTasks):
         "email": email,
         "timestamp": ts,  # Firestore timestamp nativo (datetime aware)
         "predicted_fat_percentage": float(pred),
+        "_deploy_marker": "age_gender_v1",
 
         # campos útiles para histórico
         "weight_kg": float(data["weight_kg"]),
