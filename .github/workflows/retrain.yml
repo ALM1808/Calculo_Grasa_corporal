@@ -27,8 +27,7 @@ jobs:
       - name: Run training & comparison
         env:
           API_URL: https://grasa-backend-648174663015.europe-west1.run.app
-          working-directory: backend
-        run: python train_compare.py
+        run: python backend/train_compare.py
 
       - name: Upload model artifact (if exists)
         uses: actions/upload-artifact@v4
