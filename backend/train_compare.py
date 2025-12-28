@@ -180,5 +180,31 @@ if mae_v2 < mae_v1:
 else:
     print("⛔ V2 NO mejora a V1 → se descarta")
 
+# ======================================================
+# SAVE METRICS AS ARTIFACT
+# ======================================================
+
+import json
+from datetime import datetime, timezone
+
+metrics = {
+    "timestamp": datetime.now(timezone.utc).isoformat(),
+    "n_samples": int(len(y)),
+    "v1": {
+        "mae": round(mae_v1, 4),
+        "rmse": round(rmse_v1, 4),
+    },
+    "v2": {
+        "mae": round(mae_v2, 4),
+        "rmse": round(rmse_v2, 4),
+    },
+    "improves": bool(mae_v2 < mae_v1),
+}
+
+with open("metrics.json", "w") as f:
+    json.dump(metrics, f, indent=2)
+
+print("📊 Métricas guardadas en metrics.json")
+print(json.dumps(metrics, indent=2))
 
 
