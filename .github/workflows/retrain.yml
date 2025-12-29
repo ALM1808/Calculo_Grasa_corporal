@@ -36,6 +36,18 @@ jobs:
           path: metrics.json
           if-no-files-found: ignore
 
+      - name: Evaluate promotion rule
+        run: python backend/evaluate_promotion.py
+
+      - name: Upload promotion decision
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-decision
+          path: promotion_decision.json
+          if-no-files-found: ignore
+
+
+
       - name: Upload model artifact (if exists)
         uses: actions/upload-artifact@v4
         with:
