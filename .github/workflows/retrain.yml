@@ -29,6 +29,9 @@ jobs:
           API_URL: https://grasa-backend-648174663015.europe-west1.run.app
         run: python backend/train_compare.py
 
+      - name: Promote model if improves
+        run: python backend/promote_model.py
+
       - name: Upload metrics artifact
         uses: actions/upload-artifact@v4
         with:
