@@ -207,4 +207,26 @@ with open("metrics.json", "w") as f:
 print("📊 Métricas guardadas en metrics.json")
 print(json.dumps(metrics, indent=2))
 
+# ======================================================
+# PROMOTION DECISION
+# ======================================================
+
+promotion = {
+    "timestamp": metrics["timestamp"],
+    "promote": bool(improves),
+    "reason": (
+        "v2 improves v1"
+        if improves
+        else "v2 does not improve v1"
+    ),
+    "metric": "mae",
+    "v1_mae": mae_v1,
+    "v2_mae": mae_v2,
+}
+
+with open("promotion.json", "w") as f:
+    json.dump(promotion, f, indent=2)
+
+print("🚦 Decisión de promoción guardada en promotion.json")
+print(promotion)
 
