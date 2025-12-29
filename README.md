@@ -4,108 +4,148 @@ Este proyecto implementa un sistema completo de **Machine Learning en producció
 
 El objetivo es construir un flujo **end-to-end MLOps**, desde la predicción hasta el autoaprendizaje continuo.
 
+
 ---
 
 ## Funcionalidades principales
 
-### 1. Predicción en tiempo real
-- API REST con **FastAPI**
-- Modelo ML entrenado con `scikit-learn`
-- Endpoint `/predict`:
-  - recibe datos del usuario
-  - devuelve predicción
-  - guarda la predicción en base de datos
+1️⃣ Predicción
 
-### 2. Feedback real del usuario
-- El usuario puede introducir su **valor real de grasa corporal**
-- Endpoint `/feedback`
-- El feedback se enlaza a la predicción original mediante `prediction_id`
+El usuario introduce sus datos en Streamlit
 
-### 3. Almacenamiento persistente
-- **Google Firestore** como fuente de verdad
-- Cada predicción se guarda con:
-  - features
-  - predicción
-  - valor real (cuando existe)
-  - errores calculados
+Se envían al backend FastAPI (/predict)
 
-### 4. Monitorización del modelo
-- Endpoint `/metrics`
-- Cálculo automático de:
-  - MAE
-  - RMSE
-  - error medio
-  - error relativo
-- Métricas globales o por usuario
+Se genera una predicción
 
-### 5. Dataset vivo para reentrenamiento
-- Endpoint `/training-data`
-- Extrae automáticamente solo registros **válidos**:
-  - con `real_fat_percentage`
-  - con features completas
-- Fuente directa para nuevos entrenamientos
+Se guarda:
 
-### 6. Reentrenamiento y comparación de modelos
-- Script `backend/train_compare.py`
-- Compara:
-  - **Modelo v1** (en producción)
-  - **Modelo v2** (reentrenado con nuevos datos)
-- Métricas comparadas: MAE y RMSE
+Predicción
 
-### 7. Automatización con GitHub Actions
-- Workflow `Retrain and Compare Model`
-- Ejecución:
-  - manual (`workflow_dispatch`)
-  - programable (cron)
-- El pipeline:
-  - descarga datos reales
-  - reentrena el modelo
-  - compara versiones
-  - guarda artefactos del nuevo modelo
+Features
 
----
+Timestamp
 
-## Arquitectura
+ID único
 
-────────────┐
-│ Streamlit │ ← Frontend (usuario)
-└─────┬──────┘
-│ HTTP
-┌─────▼──────┐
-│ FastAPI │ ← Backend (Cloud Run)
-│ /predict │
-│ /feedback │
-│ /metrics │
-│ /history │
-│ /training-data
-└─────┬──────┘
-│
-┌─────▼──────────┐
-│ Firestore │ ← Fuente de verdad
-│ predictions │
-└─────┬──────────┘
-│
-┌─────▼────────────────┐
-│ GitHub Actions │
-│ train_compare.py │
-│ Comparación v1 vs v2 │
-└──────────────────────┘
+2️⃣ Feedback real
 
----
+El usuario introduce su valor real
 
-## Tecnologías utilizadas
+Se guarda junto a la predicción original
 
-- **Python 3.11**
-- **FastAPI**
-- **Streamlit**
-- **scikit-learn**
-- **Pandas / NumPy**
-- **Google Firestore**
-- **Google Cloud Run**
-- **GitHub Actions**
-- **Docker (preparado para despliegue)**
+Se calculan errores individuales:
 
----
+Error absoluto
+
+Error relativo
+
+Error firmado
+
+3️⃣ Monitorización
+
+Endpoint /metrics
+
+Métricas agregadas:
+
+MAE
+
+RMSE
+
+Error medio
+
+Globales o por usuario
+
+4️⃣ Dataset de reentrenamiento
+
+Endpoint /training-data
+
+Solo registros con valor real
+
+Dataset limpio, consistente y reproducible
+
+5️⃣ Reentrenamiento automático (CI)
+
+Workflow en GitHub Actions:
+
+Descarga datos reales
+
+Evalúa modelo v1
+
+Entrena modelo v2
+
+Compara métricas
+
+Guarda:
+
+metrics.json
+
+promotion.json
+
+6️⃣ Regla de promoción automática
+Si MAE(v2) < MAE(v1) → promover
+Si no → descartar
+
+
+✔️ Evita degradación del modelo
+✔️ Sin intervención manual
+✔️ Seguro para producción
+
+7️⃣ Model Registry (Hopsworks)
+
+Si el modelo mejora:
+Se registra automáticamente en Hopsworks Model Registry
+Versionado
+Metadata
+Preparado para despliegue
+
+Si no mejora:
+No se registra
+No se toca producción
+
+🔧 Tecnologías usadas
+
+Python 3.11
+
+FastAPI — backend
+
+Streamlit — frontend
+
+Scikit-learn — ML
+
+Firestore (GCP) — storage
+
+GitHub Actions — CI/CD
+
+Hopsworks — Feature Store & Model Registry
+
+Docker / Cloud Run — despliegue
+
+📦 Estructura del proyecto
+GRASACORPORAL/
+├── app/                  # Streamlit frontend
+├── backend/
+│   ├── main.py           # FastAPI API
+│   ├── train_compare.py  # Retrain + compare
+│   ├── promote_model.py  # Promotion logic
+│   ├── register_model.py # Hopsworks registry
+│   └── requirements.txt
+├── models/
+│   ├── rf_pipeline.pkl
+│   └── rf_pipeline_v2.pkl
+├── .github/workflows/
+│   └── retrain.yml
+├── README.md
+
+🧠 Principios MLOps aplicados
+
+✔ Separación de responsabilidades
+✔ Dataset versionado implícitamente
+✔ Métricas como artefactos
+✔ Promoción automática segura
+✔ Model Registry real
+✔ Reentrenamiento reproducible
+✔ Pipeline CI profesional
+
 
 ## Estado del proyecto
 
