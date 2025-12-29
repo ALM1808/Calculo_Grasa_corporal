@@ -109,20 +109,16 @@ El objetivo es construir un flujo **end-to-end MLOps**, desde la predicción has
 
 ## Estado del proyecto
 
-✔ Predicción en producción  
-✔ Feedback real  
-✔ Métricas automáticas  
-✔ Dataset vivo  
-✔ Reentrenamiento automatizado  
-✔ Comparación de modelos  
+- Producción estable con modelo v1
 
-🔜 Pendiente:
-- Promoción automática del mejor modelo
-- Registro de modelos (Model Registry)
-- Despliegue automático del modelo ganador
+- Monitorización activa
 
----
+- Reentrenamiento automatizado
 
-## 👤 Autor
+- Decisión de mejora del modelo implementada
 
-Proyecto desarrollado como ejercicio completo de **MLOps aplicado**, integrando backend, frontend, ML y CI/CD.
+- A la espera de más datos reales para promover v2
+
+
+
+Proyecto desarrollado como caso práctico completo de MLOps, con foco en buenas prácticas reales de ingeniería de Machine Learning y despliegue en producción.
