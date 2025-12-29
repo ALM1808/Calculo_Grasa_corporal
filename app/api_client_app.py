@@ -35,7 +35,7 @@ if "last_input" not in st.session_state:
 # ========================================================
 # TABS
 # ========================================================
-tab1, tab2, tab3 = st.tabs(["🧑‍⚕️ Predicción", "📬 Feedback", "📊 Histórico"])
+tab1, tab2, tab3, tab4 = st.tabs (["🧑‍⚕️ Predicción", "📬 Feedback", "📊 Histórico", "Otro"])
 
 # ========================================================
 # TAB 1 — PREDICCIÓN
@@ -135,9 +135,9 @@ with tab2:
         else:
             fb_payload = {
                 "email": st.session_state.last_input["email"],
+                "prediction_id": st.session_state.last_prediction_id,
                 "real_fat_percentage": float(real_value),
                 "predicted_fat_percentage": float(st.session_state.last_prediction),
-                "prediction_id": st.session_state.get("last_prediction_id"),
             }
 
             try:

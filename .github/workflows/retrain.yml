@@ -57,3 +57,9 @@ jobs:
           path: models/rf_pipeline_v2.pkl
           if-no-files-found: ignore
 
+      - name: Register model in Hopsworks (if promoted)
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+        run: python backend/register_model.py
