@@ -3,6 +3,8 @@ import joblib
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import json
+from datetime import datetime, timezone
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -16,9 +18,6 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 API_URL = "https://grasa-backend-648174663015.europe-west1.run.app"
 TRAINING_DATA_URL = f"{API_URL}/training-data"
 
-# OJO: estas rutas son relativas a donde ejecutes el script
-# Si ejecutas:  python backend/train_compare.py
-# entonces "models/..." debe existir en la raíz del repo.
 MODEL_V1_PATH = Path("models/rf_pipeline.pkl")
 MODEL_V2_PATH = Path("models/rf_pipeline_v2.pkl")
 
@@ -40,7 +39,7 @@ if df.empty:
 print(f"✅ Registros disponibles: {len(df)}")
 
 # ======================================================
-# RECONSTRUIR INPUT EXACTO COMO /predict (para V1)
+# RECONSTRUIR INPUT EXACTO COMO /predict (V1)
 # ======================================================
 SNAKE_TO_MODEL = {
     "age": "Age",
@@ -76,34 +75,32 @@ EXPECTED_MODEL_COLS = [
     "Log_Age",
 ]
 
-# y = target (real)
+# Target
 y = pd.to_numeric(df["real_fat_percentage"], errors="coerce")
 mask = y.notna()
 df = df.loc[mask].copy()
 y = y.loc[mask].astype(float)
-# Alinear y con X tras eliminar filas incompletas
-df = df.dropna(subset=["age", "gender", "weight_kg", "height_m"]).copy()
-y = y.loc[df.index]
 
-# X = features
-# Filtrar filas incompletas (muy importante)
+# Filtrar filas incompletas
 required_cols = ["age", "gender", "weight_kg", "height_m"]
 df = df.dropna(subset=required_cols).copy()
+y = y.loc[df.index]
 
-# Reconstruir X otra vez tras el filtro
+# Features
 X = df.rename(columns=SNAKE_TO_MODEL).copy()
 
-# Tipos
 X["Age"] = pd.to_numeric(X["Age"], errors="coerce").astype(int)
-X["Experience_Level"] = pd.to_numeric(X["Experience_Level"], errors="coerce").astype(int)
+X["Experience_Level"] = pd.to_numeric(
+    X["Experience_Level"], errors="coerce"
+).astype(int)
+
 X["Gender"] = X["Gender"].astype(str)
 X["Workout_Type"] = X["Workout_Type"].astype(str)
 
-# Features derivadas IGUAL que en /predict
+# Features derivadas
 X["BMI"] = X["Weight (kg)"] / (X["Height (m)"] ** 2)
 X["Log_Age"] = np.log1p(X["Age"])
 
-# Nos quedamos solo con lo que espera el pipeline
 X = X[EXPECTED_MODEL_COLS]
 
 # ======================================================
@@ -115,12 +112,12 @@ model_v1 = joblib.load(MODEL_V1_PATH)
 y_pred_v1 = model_v1.predict(X)
 
 mae_v1 = mean_absolute_error(y, y_pred_v1)
-rmse_v1 = np.sqrt(mean_squared_error(y, y_pred_v1))  # ✅ compatible con tu sklearn
+rmse_v1 = np.sqrt(mean_squared_error(y, y_pred_v1))
 
 print(f"📊 V1 → MAE: {mae_v1:.3f} | RMSE: {rmse_v1:.3f}")
 
 # ======================================================
-# TRAIN + EVAL MODEL V2 (misma X, mismas cols)
+# TRAIN + EVAL MODEL V2
 # ======================================================
 numeric_features = [
     "Age",
@@ -137,14 +134,14 @@ numeric_features = [
     "BMI",
     "Log_Age",
 ]
+
 categorical_features = ["Gender", "Workout_Type"]
 
 preprocessor = ColumnTransformer(
     transformers=[
         ("num", StandardScaler(), numeric_features),
         ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features),
-    ],
-    remainder="drop",
+    ]
 )
 
 model_v2 = Pipeline(
@@ -164,29 +161,27 @@ model_v2.fit(X, y)
 y_pred_v2 = model_v2.predict(X)
 
 mae_v2 = mean_absolute_error(y, y_pred_v2)
-rmse_v2 = np.sqrt(mean_squared_error(y, y_pred_v2))  # ✅ compatible
+rmse_v2 = np.sqrt(mean_squared_error(y, y_pred_v2))
 
 print(f"📊 V2 → MAE: {mae_v2:.3f} | RMSE: {rmse_v2:.3f}")
+
+# ======================================================
+# DECISIÓN GLOBAL
+# ======================================================
+improves = mae_v2 < mae_v1
 
 # ======================================================
 # SAVE MODEL V2
 # ======================================================
-print(f"📊 V1 → MAE: {mae_v1:.3f} | RMSE: {rmse_v1:.3f}")
-print(f"📊 V2 → MAE: {mae_v2:.3f} | RMSE: {rmse_v2:.3f}")
-
-if mae_v2 < mae_v1:
+if improves:
     joblib.dump(model_v2, MODEL_V2_PATH)
     print("🏆 V2 mejora a V1 → modelo guardado")
 else:
     print("⛔ V2 NO mejora a V1 → se descarta")
 
 # ======================================================
-# SAVE METRICS AS ARTIFACT
+# SAVE METRICS
 # ======================================================
-
-import json
-from datetime import datetime, timezone
-
 metrics = {
     "timestamp": datetime.now(timezone.utc).isoformat(),
     "n_samples": int(len(y)),
@@ -198,7 +193,7 @@ metrics = {
         "mae": round(mae_v2, 4),
         "rmse": round(rmse_v2, 4),
     },
-    "improves": bool(mae_v2 < mae_v1),
+    "improves": improves,
 }
 
 with open("metrics.json", "w") as f:
@@ -210,23 +205,17 @@ print(json.dumps(metrics, indent=2))
 # ======================================================
 # PROMOTION DECISION
 # ======================================================
-
 promotion = {
     "timestamp": metrics["timestamp"],
-    "promote": bool(improves),
-    "reason": (
-        "v2 improves v1"
-        if improves
-        else "v2 does not improve v1"
-    ),
+    "promote": improves,
+    "reason": "v2 improves v1" if improves else "v2 does not improve v1",
     "metric": "mae",
-    "v1_mae": mae_v1,
-    "v2_mae": mae_v2,
+    "v1_mae": round(mae_v1, 4),
+    "v2_mae": round(mae_v2, 4),
 }
 
 with open("promotion.json", "w") as f:
     json.dump(promotion, f, indent=2)
 
 print("🚦 Decisión de promoción guardada en promotion.json")
-print(promotion)
-
+print(json.dumps(promotion, indent=2))
