@@ -13,6 +13,7 @@ API_URL = st.secrets.get("API_URL", os.getenv("API_URL", "http://127.0.0.1:8000"
 PREDICT_URL = f"{API_URL}/predict"
 FEEDBACK_URL = f"{API_URL}/feedback"
 HISTORY_URL = f"{API_URL}/history"
+METRICS_URL = f"{API_URL}/metrics"
 
 st.set_page_config(
     page_title="Grasa corporal – Cliente API",
@@ -24,18 +25,23 @@ st.title("💪 Predicción de grasa corporal — Cliente API")
 st.caption(f"Conectado al backend: **{API_URL}**")
 
 # ========================================================
-# ESTADO DE SESIÓN
+# ESTADO DE SESIÓN (ROBUSTO PARA CLOUD)
 # ========================================================
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = None
 
+# ⚠️ en vez de None, usamos dict vacío para evitar .get sobre None
 if "last_input" not in st.session_state:
-    st.session_state.last_input = None
+    st.session_state.last_input = {}
+
+# asegurar que existen siempre
+if "last_prediction_id" not in st.session_state:
+    st.session_state.last_prediction_id = None
 
 # ========================================================
 # TABS
 # ========================================================
-tab1, tab2, tab3, tab4 = st.tabs (["🧑‍⚕️ Predicción", "📬 Feedback", "📊 Histórico", "Otro"])
+tab1, tab2, tab3, tab4 = st.tabs(["🧑‍⚕️ Predicción", "📬 Feedback", "📊 Histórico", "Otro"])
 
 # ========================================================
 # TAB 1 — PREDICCIÓN
@@ -75,19 +81,20 @@ with tab1:
         else:
             payload = {
                 "email": email,
-                "age": age,
+                "age": int(age),
                 "gender": gender,
-                "weight_kg": weight_kg,
-                "height_m": height_m,
-                "max_bpm": max_bpm,
-                "avg_bpm": avg_bpm,
-                "resting_bpm": resting_bpm,
-                "session_duration_hours": session_duration_hours,
-                "calories_burned": calories_burned,
+                "weight_kg": float(weight_kg),
+                "height_m": float(height_m),
+                "max_bpm": int(max_bpm),
+                "avg_bpm": int(avg_bpm),
+                "resting_bpm": int(resting_bpm),
+                "session_duration_hours": float(session_duration_hours),
+                "calories_burned": float(calories_burned),
                 "workout_type": workout_type,
-                "water_intake_liters": water_intake_liters,
-                "workout_frequency_days_week": workout_frequency_days_week,
-                "experience_level": experience_level,
+                "water_intake_liters": float(water_intake_liters),
+                "workout_frequency_days_week": int(workout_frequency_days_week),
+                # ✅ importante: int, no "1"/"2"/"3"
+                "experience_level": int(experience_level),
             }
 
             try:
@@ -102,7 +109,7 @@ with tab1:
 
                     st.session_state.last_prediction = pred
                     st.session_state.last_prediction_id = prediction_id
-                    st.session_state.last_input = payload
+                    st.session_state.last_input = payload  # dict garantizado
 
                     st.success(f"Predicción obtenida: **{pred:.2f}%** de grasa corporal")
                     st.caption(f"🆔 prediction_id: {prediction_id}")
@@ -130,7 +137,7 @@ with tab2:
     send_fb = st.button("📨 Enviar feedback a la API")
 
     if send_fb:
-        if st.session_state.last_input is None:
+        if not st.session_state.last_prediction_id or not st.session_state.last_input:
             st.error("Primero debes obtener una predicción para enviar feedback.")
         else:
             fb_payload = {
@@ -164,46 +171,28 @@ def load_history(email: str):
             timeout=15,
         )
 
-        st.write("DEBUG status_code:", r.status_code)
-        st.write("DEBUG raw response:", r.text)
-
         if r.status_code != 200:
             st.error(f"Error consultando histórico ({r.status_code})")
             return []
 
         data = r.json()
-
         if not isinstance(data, dict):
             st.error("Respuesta inesperada del backend")
             return []
 
-        records = data.get("records", [])
-
-        st.write("DEBUG records length:", len(records))
-
-        return records
+        return data.get("records", [])
 
     except Exception as e:
         st.error(f"Error llamando al backend: {e}")
         return []
 
 
-
 def parse_timestamp_series(s: pd.Series) -> pd.Series:
-    """
-    Convierte timestamps robustamente.
-    Soporta:
-    - ISO strings
-    - None
-    - dicts tipo Firestore Timestamp (si alguna vez aparecieran)
-    """
     def _one(x):
         if x is None:
             return pd.NaT
 
-        # Si viniera como dict (algunos serializadores lo devuelven así)
         if isinstance(x, dict):
-            # posibles claves
             for k in ["_seconds", "seconds"]:
                 if k in x:
                     try:
@@ -212,7 +201,6 @@ def parse_timestamp_series(s: pd.Series) -> pd.Series:
                         return pd.NaT
             return pd.NaT
 
-        # string / datetime-like
         try:
             return pd.to_datetime(x, errors="coerce", utc=True)
         except Exception:
@@ -220,10 +208,11 @@ def parse_timestamp_series(s: pd.Series) -> pd.Series:
 
     return s.apply(_one)
 
+
 def load_metrics(email: str | None = None):
     try:
         params = {"email": email} if email else None
-        r = requests.get(f"{API_URL}/metrics", params=params, timeout=15)
+        r = requests.get(METRICS_URL, params=params, timeout=15)
 
         if r.status_code != 200:
             st.error(f"Error cargando métricas ({r.status_code})")
@@ -235,34 +224,26 @@ def load_metrics(email: str | None = None):
         st.error(f"Error llamando a /metrics: {e}")
         return None
 
+
 with tab3:
     st.header("📊 Histórico de predicciones")
 
-    email_filter = st.text_input("Introduce tu email para ver el histórico:")
-
-    # 🔍 DEBUG (temporal)
-    st.write("DEBUG API_URL:", API_URL)
-    st.write("DEBUG HISTORY_URL:", HISTORY_URL)
-    st.write("DEBUG email:", repr(email_filter.strip().lower()))
+    email_filter = st.text_input("Introduce tu email para ver el histórico:").strip().lower()
 
     if email_filter:
-        records = load_history(email_filter.strip().lower())
+        records = load_history(email_filter)
 
         if not records:
             st.warning("No hay registros para este email.")
         else:
             df = pd.DataFrame(records)
 
-            # --- timestamp robusto ---
             if "timestamp" not in df.columns:
                 df["timestamp"] = None
 
             df["timestamp_dt"] = parse_timestamp_series(df["timestamp"])
-
-            # Orden: más nuevo primero (así ves “lo de hoy” arriba)
             df = df.sort_values("timestamp_dt", ascending=False, na_position="last").reset_index(drop=True)
 
-            # --- tabla limpia ---
             preferred_cols = [
                 "timestamp_dt",
                 "predicted_fat_percentage",
@@ -280,46 +261,41 @@ with tab3:
                 "height_m",
             ]
             cols_present = [c for c in preferred_cols if c in df.columns]
-
             df_table = df[cols_present].copy()
 
-            # Mostrar timestamp legible
             if "timestamp_dt" in df_table.columns:
-                df_table["timestamp_dt"] = df_table["timestamp_dt"].dt.tz_convert("Europe/Madrid").dt.strftime("%Y-%m-%d %H:%M:%S")
-
+                df_table["timestamp_dt"] = (
+                    df_table["timestamp_dt"]
+                    .dt.tz_convert("Europe/Madrid")
+                    .dt.strftime("%Y-%m-%d %H:%M:%S")
+                )
                 df_table = df_table.rename(columns={"timestamp_dt": "timestamp"})
 
             st.subheader("📄 Datos históricos (resumen)")
             st.dataframe(df_table, use_container_width=True)
 
-            # --- gráfico (pred vs real) ---
             df_plot = df[df["timestamp_dt"].notna()].copy()
             if df_plot.empty:
                 st.info("No hay timestamps válidos para dibujar el gráfico.")
             else:
-                # numéricos
-                if "predicted_fat_percentage" in df_plot.columns:
-                    df_plot["predicted_fat_percentage"] = pd.to_numeric(df_plot["predicted_fat_percentage"], errors="coerce")
-                if "real_fat_percentage" in df_plot.columns:
-                    df_plot["real_fat_percentage"] = pd.to_numeric(df_plot["real_fat_percentage"], errors="coerce")
+                df_plot["predicted_fat_percentage"] = pd.to_numeric(df_plot.get("predicted_fat_percentage"), errors="coerce")
+                df_plot["real_fat_percentage"] = pd.to_numeric(df_plot.get("real_fat_percentage"), errors="coerce")
 
                 long_parts = []
 
-                if "predicted_fat_percentage" in df_plot.columns and df_plot["predicted_fat_percentage"].notna().any():
+                if df_plot["predicted_fat_percentage"].notna().any():
                     tmp = df_plot[["timestamp_dt", "predicted_fat_percentage"]].copy()
                     tmp = tmp.rename(columns={"predicted_fat_percentage": "value"})
                     tmp["serie"] = "Predicción"
                     long_parts.append(tmp)
 
-                if "real_fat_percentage" in df_plot.columns and df_plot["real_fat_percentage"].notna().any():
+                if df_plot["real_fat_percentage"].notna().any():
                     tmp = df_plot[["timestamp_dt", "real_fat_percentage"]].copy()
                     tmp = tmp.rename(columns={"real_fat_percentage": "value"})
                     tmp["serie"] = "Real"
                     long_parts.append(tmp)
 
-                if not long_parts:
-                    st.info("No hay valores suficientes para dibujar el gráfico.")
-                else:
+                if long_parts:
                     df_long = pd.concat(long_parts, ignore_index=True)
                     df_long = df_long[df_long["value"].notna()]
 
@@ -340,7 +316,12 @@ with tab3:
 
                     st.subheader("📈 Evolución (Predicción y Real si existe)")
                     st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("No hay valores suficientes para dibujar el gráfico.")
 
+# ========================================================
+# TAB 4 — MÉTRICAS
+# ========================================================
 with tab4:
     st.header("📐 Métricas del modelo")
 
@@ -352,10 +333,9 @@ with tab4:
 
     email_metrics = None
     if scope == "Por usuario":
-        email_metrics = st.text_input(
-            "Email para métricas",
-            value=st.session_state.get("last_input", {}).get("email", "")
-        ).strip().lower()
+        # ✅ robusto: last_input puede ser {}
+        default_email = (st.session_state.get("last_input") or {}).get("email", "")
+        email_metrics = st.text_input("Email para métricas", value=default_email).strip().lower()
 
         if not email_metrics:
             st.info("Introduce un email para ver métricas por usuario.")
@@ -367,7 +347,6 @@ with tab4:
         st.warning("No hay métricas disponibles todavía (faltan feedbacks).")
         st.stop()
 
-    # ---- KPIs ----
     c1, c2, c3, c4 = st.columns(4)
 
     c1.metric("📊 Nº registros", metrics.get("count", 0))
@@ -375,10 +354,7 @@ with tab4:
     c3.metric("📐 RMSE", metrics.get("rmse", "–"))
     c4.metric("⚖️ Error medio", metrics.get("mean_signed_error", "–"))
 
-    st.metric(
-        "📎 Error relativo medio (%)",
-        metrics.get("mean_relative_error", "–"),
-    )
+    st.metric("📎 Error relativo medio (%)", metrics.get("mean_relative_error", "–"))
 
 
 
