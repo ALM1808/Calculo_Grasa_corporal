@@ -94,7 +94,7 @@ with tab1:
                 "water_intake_liters": float(water_intake_liters),
                 "workout_frequency_days_week": int(workout_frequency_days_week),
                 # ✅ importante: int, no "1"/"2"/"3"
-                "experience_level": int(experience_level),
+                "experience_level": experience_level,
             }
 
             try:
